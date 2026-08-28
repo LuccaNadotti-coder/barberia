@@ -1,0 +1,44 @@
+name: Respaldo mensual
+
+# Día 1 de cada mes a las 03:00 de Lima (08:00 UTC), cuando el local está
+# cerrado y nadie está reservando.
+on:
+  schedule:
+    - cron: '0 8 1 * *'
+  workflow_dispatch:
+
+jobs:
+  respaldar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Exportar y cifrar
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          RESPALDO_PASSWORD: ${{ secrets.RESPALDO_PASSWORD }}
+        run: npm run cron:respaldo
+
+      # El ZIP va cifrado con AES-256, así que subirlo como artefacto es
+      # seguro. Lo bajas de aquí y lo pasas a Google Drive.
+      #
+      # Deliberadamente NO se sube a Drive desde el cron: haría falta guardar
+      # una credencial de Google con permiso de escritura en los secretos del
+      # repo, y eso amplía la superficie de ataque más de lo que ahorra.
+      - name: Publicar como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: respaldo-barberia
+          path: respaldos/*.zip
+          # 90 días es el máximo del plan gratuito. Baja el archivo antes.
+          retention-days: 90
+          if-no-files-found: error

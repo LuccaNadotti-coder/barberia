@@ -1,0 +1,38 @@
+name: Liberar slots vencidos
+
+# Cada 5 minutos. Es el cron más frecuente del proyecto y el más importante:
+# sin él, cada abandono a mitad del pago deja un horario muerto.
+#
+# GitHub Actions no garantiza puntualidad: bajo carga puede retrasarse varios
+# minutos. No pasa nada — la RPC compara contra now() en la base, así que un
+# retraso sólo significa que el slot se libera un poco más tarde, nunca que se
+# libere uno que no tocaba.
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+# Si una ejecución se solapa con la anterior, cancelamos la vieja.
+concurrency:
+  group: liberar-slots
+  cancel-in-progress: true
+
+jobs:
+  liberar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Liberar reservas vencidas
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npm run cron:liberar

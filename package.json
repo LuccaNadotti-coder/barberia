@@ -1,0 +1,42 @@
+{
+  "name": "barberia",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sistema de reservas para barbería — sede única, Lima, Perú.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test:e2e": "node pruebas/e2e.mjs",
+    "test:panel": "node pruebas/panel.mjs",
+    "test:lib": "tsx pruebas/librerias.ts",
+    "tipos": "supabase gen types typescript --linked --schema public > src/lib/basedatos.ts",
+    "cron:liberar": "tsx scripts/liberar-slots.ts",
+    "cron:recordatorios": "tsx scripts/recordatorios.ts",
+    "cron:respaldo": "tsx scripts/respaldo-mensual.ts"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.12.5",
+    "@supabase/supabase-js": "^2.45.4",
+    "browser-image-compression": "^2.0.2",
+    "next": "14.2.15",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "resend": "^4.0.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.5",
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.0",
+    "archiver": "^7.0.1",
+    "archiver-zip-encrypted": "^2.0.0",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.13",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.3"
+  }
+}

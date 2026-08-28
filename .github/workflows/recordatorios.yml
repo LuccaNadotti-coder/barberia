@@ -1,0 +1,40 @@
+name: Recordatorios de mañana
+
+# 09:00 en Lima. GitHub Actions usa UTC y Lima es UTC-5 FIJO (Perú no aplica
+# horario de verano desde 1994), así que 14:00 UTC es siempre 09:00 en Lima.
+# No hay que ajustar esto dos veces al año.
+on:
+  schedule:
+    - cron: '0 14 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: recordatorios
+  cancel-in-progress: false
+
+jobs:
+  recordar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - run: npm ci
+
+      # Sólo correo. Los WhatsApp los manda el barbero desde el panel, a mano:
+      # es una decisión de negocio, no una limitación. Ver CLAUDE.md.
+      - name: Enviar recordatorios por correo
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          RESEND_FROM: ${{ secrets.RESEND_FROM }}
+          NEXT_PUBLIC_NOMBRE_LOCAL: ${{ vars.NEXT_PUBLIC_NOMBRE_LOCAL }}
+          NEXT_PUBLIC_DIRECCION_LOCAL: ${{ vars.NEXT_PUBLIC_DIRECCION_LOCAL }}
+          NEXT_PUBLIC_URL_SITIO: ${{ vars.NEXT_PUBLIC_URL_SITIO }}
+        run: npm run cron:recordatorios

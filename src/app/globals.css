@@ -1,0 +1,151 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Mismas curvas que tailwind.config.ts, disponibles en CSS plano. */
+    --salida: cubic-bezier(0.23, 1, 0.32, 1);
+    --vaiven: cubic-bezier(0.77, 0, 0.175, 1);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    /* Evita el rebote elástico horizontal en iOS dentro de las franjas. */
+    overscroll-behavior-x: none;
+  }
+
+  body {
+    @apply bg-tinta text-hueso font-sans antialiased;
+    /* El fondo no es plano: un halo de latón muy tenue arriba da profundidad
+       sin que se lea como un degradado. */
+    background-image: radial-gradient(
+      120% 60% at 50% -10%,
+      rgba(194, 160, 99, 0.07),
+      transparent 60%
+    );
+    background-attachment: fixed;
+  }
+
+  /* Foco visible SIEMPRE que se navegue por teclado. Nunca outline:none a
+     secas: sin esto el formulario es inusable sin ratón. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-laton ring-offset-2 ring-offset-tinta;
+    border-radius: 6px;
+  }
+
+  /* Los dígitos no deben cambiar de ancho: si no, el cronómetro «tiembla»
+     cada segundo y el ojo se va a él en lugar de al botón de subir. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+  }
+
+  /* En iOS, un input con font-size < 16px hace que Safari haga zoom al
+     enfocarlo y descoloca la página entera. */
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
+@layer components {
+  /* ── TICKET PERFORADO ──────────────────────────────────────────────────────
+     El elemento firma. Los agujeros son máscaras radiales en los bordes: se
+     ven recortados de verdad contra cualquier fondo, no son puntitos pintados
+     encima (que se notarían al hacer captura de pantalla sobre otro color). */
+  .ticket {
+    --muesca: 11px;
+    background: theme('colors.papel.DEFAULT');
+    color: theme('colors.papel.tinta');
+    filter: drop-shadow(0 18px 40px rgba(0, 0, 0, 0.55));
+    -webkit-mask-image:
+      radial-gradient(circle at left var(--corte), transparent var(--muesca), #000 calc(var(--muesca) + 0.5px)),
+      radial-gradient(circle at right var(--corte), transparent var(--muesca), #000 calc(var(--muesca) + 0.5px));
+    -webkit-mask-composite: source-in;
+    mask-image:
+      radial-gradient(circle at left var(--corte), transparent var(--muesca), #000 calc(var(--muesca) + 0.5px)),
+      radial-gradient(circle at right var(--corte), transparent var(--muesca), #000 calc(var(--muesca) + 0.5px));
+    mask-composite: intersect;
+  }
+
+  /* La línea de corte: rayitas, no un borde sólido. */
+  .perforado {
+    background-image: linear-gradient(
+      to right,
+      theme('colors.papel.sombra') 0 8px,
+      transparent 8px 16px
+    );
+    background-size: 16px 2px;
+    background-repeat: repeat-x;
+    height: 2px;
+  }
+
+  /* Franja horizontal de días/horas. */
+  .franja {
+    @apply flex gap-2 overflow-x-auto pb-2;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: theme('colors.tinta.500') transparent;
+  }
+  .franja > * {
+    scroll-snap-align: center;
+    flex: 0 0 auto;
+  }
+  .franja::-webkit-scrollbar {
+    height: 4px;
+  }
+  .franja::-webkit-scrollbar-thumb {
+    background: theme('colors.tinta.500');
+    border-radius: 4px;
+  }
+
+  /* Botón: la retroalimentación al pulsar es lo que hace que la interfaz
+     «responda». 140 ms y scale sutil. */
+  .pulsable {
+    transition:
+      transform 140ms var(--salida),
+      background-color 140ms ease,
+      border-color 140ms ease,
+      color 140ms ease;
+  }
+  .pulsable:active {
+    transform: scale(0.97);
+  }
+
+  /* Sólo en dispositivos con puntero fino: en táctil el :hover se queda
+     pegado tras tocar. */
+  @media (hover: hover) and (pointer: fine) {
+    .pulsable:hover {
+      border-color: theme('colors.tinta.500');
+    }
+  }
+
+  .esqueleto {
+    @apply relative overflow-hidden bg-tinta-700;
+  }
+  .esqueleto::after {
+    content: '';
+    @apply absolute inset-0 animate-barrer;
+    background: linear-gradient(90deg, transparent, rgba(237, 232, 223, 0.06), transparent);
+  }
+}
+
+/* ── MOVIMIENTO REDUCIDO ──────────────────────────────────────────────────────
+   No es «cero animación»: se conservan opacidad y color, que ayudan a entender
+   el cambio de estado. Se elimina el DESPLAZAMIENTO, que es lo que marea. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .pulsable:active {
+    transform: none;
+  }
+}
