@@ -40,7 +40,10 @@ export default async function Panel() {
     ' inicio, fin, captura_path, captura_subida_en, notas, creado_en,' +
     ' clientes(nombre, telefono, email), barberos!citas_barbero_id_fkey(nombre)'
 
-  const [porValidar, deHoy, deManana] = await Promise.all([
+  // La cuarta consulta existe porque sin ella una cita confirmada para pasado
+  // mañana no encajaba en NINGUNA de las otras tres y desaparecía del panel: no
+  // era sólo que faltara una pestaña, es que nunca se traía de la base.
+  const [porValidar, deHoy, deManana, proximas] = await Promise.all([
     sb.from('citas').select(columnas).eq('estado', 'en_revision').order('inicio'),
     sb
       .from('citas')
@@ -55,6 +58,12 @@ export default async function Panel() {
       .eq('estado', 'confirmada')
       .gte('inicio', limManana.desde)
       .lt('inicio', limManana.hasta)
+      .order('inicio'),
+    sb
+      .from('citas')
+      .select(columnas)
+      .eq('estado', 'confirmada')
+      .gte('inicio', limManana.hasta) // de pasado mañana en adelante
       .order('inicio'),
   ])
 
@@ -95,6 +104,7 @@ export default async function Panel() {
       porValidar={aplanar(porValidar.data, true)}
       hoy={aplanar(deHoy.data)}
       manana={aplanar(deManana.data)}
+      proximas={aplanar(proximas.data)}
     />
   )
 }

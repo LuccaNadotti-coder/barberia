@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
-import { fechaLarga, hora, hora12, soles } from '@/lib/fechas'
+import { fechaISO, fechaLarga, hora, hora12, mananaISO, soles } from '@/lib/fechas'
 import { clienteNavegador } from '@/lib/sesion-navegador'
 import type { BarberoSesion, EstadoCita } from '@/lib/supabase'
 import { telefonoLegible } from '@/lib/validacion'
@@ -28,7 +28,7 @@ export interface CitaPanel {
   barbero_nombre: string
 }
 
-type Pestana = 'validar' | 'hoy' | 'manana'
+type Pestana = 'validar' | 'hoy' | 'manana' | 'proximas'
 type Accion = 'confirmar' | 'rechazar' | 'atendida' | 'no_show' | 'cancelar'
 
 interface Props {
@@ -37,9 +37,18 @@ interface Props {
   porValidar: CitaPanel[]
   hoy: CitaPanel[]
   manana: CitaPanel[]
+  /** Confirmadas de pasado mañana en adelante. Sin ellas se perdían de vista. */
+  proximas: CitaPanel[]
 }
 
-export function PanelBarbero({ barbero, nombreLocal, porValidar, hoy, manana }: Props) {
+export function PanelBarbero({
+  barbero,
+  nombreLocal,
+  porValidar,
+  hoy,
+  manana,
+  proximas,
+}: Props) {
   const router = useRouter()
   const [pestana, setPestana] = useState<Pestana>(porValidar.length > 0 ? 'validar' : 'hoy')
   const [error, setError] = useState<string | null>(null)
@@ -57,6 +66,18 @@ export function PanelBarbero({ barbero, nombreLocal, porValidar, hoy, manana }: 
       })
       const j = (await r.json()) as { error?: string }
       if (!r.ok) throw new Error(j.error ?? 'No se pudo completar la acción')
+
+      // Al confirmar, la cita se va de «Validar» a la pestaña que le toca por
+      // fecha. Sin esto desaparece de la vista y hay que ir a buscarla para
+      // avisar al cliente — que es justo lo siguiente que quieres hacer.
+      if (accion === 'confirmar') {
+        const cita = porValidar.find((c) => c.id === cita_id)
+        if (cita) {
+          const dia = fechaISO(cita.inicio)
+          setPestana(dia === fechaISO(new Date()) ? 'hoy' : dia === mananaISO() ? 'manana' : 'proximas')
+        }
+      }
+
       transicion(() => router.refresh())
     } catch (e) {
       setError((e as Error).message)
@@ -71,7 +92,7 @@ export function PanelBarbero({ barbero, nombreLocal, porValidar, hoy, manana }: 
     router.refresh()
   }
 
-  const listas: Record<Pestana, CitaPanel[]> = { validar: porValidar, hoy, manana }
+  const listas: Record<Pestana, CitaPanel[]> = { validar: porValidar, hoy, manana, proximas }
   const lista = listas[pestana]
 
   return (
@@ -100,12 +121,16 @@ export function PanelBarbero({ barbero, nombreLocal, porValidar, hoy, manana }: 
 
       <div className="mx-auto max-w-[560px] px-4">
         {/* ── Pestañas ─────────────────────────────────────────────────── */}
+        {/* Cuatro pestañas en 328 px de un móvil de 360: la etiqueta se acorta a
+            «Validar» y el texto baja a 12.5 px para que ninguna parta en dos
+            líneas. La altura se fija a 48 px, el mínimo tocable del proyecto. */}
         <nav className="mt-4 flex gap-1 rounded-pastilla border border-tinta-600 bg-tinta-800 p-1">
           {(
             [
-              ['validar', 'Por validar', porValidar.length],
+              ['validar', 'Validar', porValidar.length],
               ['hoy', 'Hoy', hoy.filter((c) => c.estado === 'confirmada').length],
               ['manana', 'Mañana', manana.length],
+              ['proximas', 'Próximas', proximas.length],
             ] as const
           ).map(([clave, etiqueta, n]) => (
             <button
@@ -113,7 +138,7 @@ export function PanelBarbero({ barbero, nombreLocal, porValidar, hoy, manana }: 
               onClick={() => setPestana(clave)}
               aria-current={pestana === clave ? 'page' : undefined}
               className={cx(
-                'pulsable flex-1 rounded-[7px] px-2 py-2.5 text-[13px] font-medium',
+                'pulsable flex min-h-[48px] flex-1 items-center justify-center whitespace-nowrap rounded-[7px] px-1.5 text-[12.5px] font-medium',
                 pestana === clave ? 'bg-laton text-tinta-900' : 'text-hueso-tenue',
               )}
             >
@@ -209,13 +234,22 @@ function Tarjeta({
         cerrada && 'opacity-55',
       )}
     >
-      {/* Cabecera: hora grande a la izquierda, es lo que se escanea primero. */}
+      {/* Cabecera: hora grande a la izquierda, es lo que se escanea primero.
+          En «Próximas» la hora sola no dice nada —pueden ser dentro de tres
+          semanas—, así que encima va el día. */}
       <div className="flex items-start justify-between gap-3">
-        <div className="flex items-baseline gap-3">
-          <span className="tabular font-mono text-[24px] font-semibold leading-none text-laton">
-            {hora(cita.inicio)}
-          </span>
-          <span className="text-[12px] text-hueso-apagado">{cita.duracion_min} min</span>
+        <div>
+          {pestana === 'proximas' && (
+            <div className="mb-1 text-[12px] font-medium capitalize text-hueso-tenue">
+              {fechaLarga(cita.inicio)}
+            </div>
+          )}
+          <div className="flex items-baseline gap-3">
+            <span className="tabular font-mono text-[24px] font-semibold leading-none text-laton">
+              {hora(cita.inicio)}
+            </span>
+            <span className="text-[12px] text-hueso-apagado">{cita.duracion_min} min</span>
+          </div>
         </div>
         <span className="tabular select-all font-mono text-[12px] text-hueso-apagado">
           {cita.codigo}
@@ -380,6 +414,26 @@ function Tarjeta({
         </div>
       )}
 
+      {/* ── PRÓXIMAS ────────────────────────────────────────────────────────
+          Plantilla de CONFIRMACIÓN, no de recordatorio: para el cliente esta es
+          la primera noticia de que su adelanto quedó validado. El recordatorio
+          de la pestaña «Mañana» llega después, la víspera. */}
+      {pestana === 'proximas' && cita.cliente_telefono && (
+        <div className="mt-3">
+          <a
+            href={enlacePara('confirmacion', cita.cliente_telefono, datosWa)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="pulsable flex min-h-[48px] items-center justify-center gap-2 rounded-pastilla border border-exito/40 bg-exito/10 px-4 text-[14px] font-semibold text-exito"
+          >
+            Avisar por WhatsApp
+          </a>
+          <p className="mt-1.5 text-center text-[11.5px] text-hueso-apagado">
+            Se abre tu WhatsApp con el mensaje listo. Tú le das a enviar.
+          </p>
+        </div>
+      )}
+
       {/* ── CANCELAR ────────────────────────────────────────────────────────
           Discreto y a dos toques: libera el horario y no se puede deshacer.
           No toca el ledger — si hay que devolver el adelanto, es una fila de
@@ -453,6 +507,7 @@ function Vacio({ pestana }: { pestana: Pestana }) {
     validar: 'Nada por validar. Cuando alguien suba un comprobante, aparecerá aquí.',
     hoy: 'No hay citas confirmadas para hoy.',
     manana: 'No hay citas confirmadas para mañana.',
+    proximas: 'No hay citas confirmadas más adelante.',
   }[pestana]
 
   return (

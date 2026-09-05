@@ -1,8 +1,9 @@
 -- ═══════════════════════════════════════════════════════════════════════════════
 --  DATOS REALES DE TU BARBERÍA
 --
---  sql/01-schema.sql deja datos de EJEMPLO (Marco, Diego, 5 servicios con
---  precios inventados). Este archivo los sustituye por los tuyos.
+--  sql/01-schema.sql deja datos de EJEMPLO. Este archivo los sustituye por los
+--  tuyos. Ya lleva aplicado lo que sabemos de EL TEMPLO (Jeanpier de dueño); lo
+--  que sigue marcado con ← CAMBIA es lo que todavía es inventado.
 --
 --  CÓMO USARLO
 --    1. Rellena los valores marcados con  ← CAMBIA
@@ -20,27 +21,33 @@ begin;
 
 -- ───────────────────────────────────────────────────────────────────────────────
 --  1 · BARBEROS
---     Cambia los nombres «Marco» y «Diego» del WHERE por los que tengas ahora
---     en la tabla (si ya los renombraste, usa los nuevos).
+--     Los WHERE buscan por el nombre ACTUAL en la tabla: hoy «Jeanpier» y
+--     «Bryan». Si cambias el nombre arriba, el WHERE de la siguiente ejecución
+--     tiene que usar el nuevo.
 -- ───────────────────────────────────────────────────────────────────────────────
 
+-- ESTADO: el nombre y el rol ya son los reales. El teléfono y el Yape SIGUEN
+-- SIENDO INVENTADOS — y el yape_numero es al que el cliente manda el adelanto.
 update public.barberos set
-  nombre       = 'Marco',                 -- ← CAMBIA  nombre real del dueño
-  telefono     = '51987654321',           -- ← CAMBIA  su celular, para los enlaces wa.me
-  yape_numero  = '987654321',             -- ← CAMBIA  adónde llegan los adelantos
-  yape_titular = 'Marco A. Quispe',       -- ← CAMBIA  nombre que muestra Yape al pagar
+  nombre       = 'Jeanpier',              --            nombre real del dueño
+  telefono     = '51999111222',           -- ← CAMBIA  su celular, para los enlaces wa.me
+  yape_numero  = '999111222',             -- ← CAMBIA  adónde llegan los adelantos
+  yape_titular = 'Jeanpier Ramos',        -- ← CAMBIA  nombre que muestra Yape al pagar
   es_admin     = true,                    --            el dueño ve TODAS las citas
   activo       = true
-where nombre = 'Marco';                   -- ← CAMBIA  nombre ACTUAL en la tabla
+where nombre = 'Jeanpier';                --            nombre ACTUAL en la tabla
 
+-- «Bryan» es un nombre de relleno: no sabemos aún quién es el segundo barbero.
+-- Si le cambias el nombre, cámbialo TAMBIÉN en CREDENCIALES-PANEL.local.md, que
+-- es de donde npm run test:panel saca la pareja nombre↔cuenta.
 update public.barberos set
-  nombre       = 'Diego',                 -- ← CAMBIA
-  telefono     = '51912345678',           -- ← CAMBIA
-  yape_numero  = '912345678',             -- ← CAMBIA
-  yape_titular = 'Diego R. Flores',       -- ← CAMBIA
+  nombre       = 'Bryan',                 -- ← CAMBIA
+  telefono     = '51999333444',           -- ← CAMBIA
+  yape_numero  = '999333444',             -- ← CAMBIA
+  yape_titular = 'Bryan Ramos',           -- ← CAMBIA
   es_admin     = false,                   --            sólo ve sus propias citas
   activo       = true
-where nombre = 'Diego';                   -- ← CAMBIA
+where nombre = 'Bryan';                   -- ← CAMBIA  nombre ACTUAL en la tabla
 
 -- ¿Un tercer barbero? Descomenta:
 -- insert into public.barberos (nombre, telefono, yape_numero, yape_titular, es_admin, orden)
@@ -139,10 +146,10 @@ cross join (values
 where b.activo;
 */
 
--- Opción B · jornada distinta por barbero. Ejemplo: Diego no trabaja domingos.
+-- Opción B · jornada distinta por barbero. Ejemplo: Bryan no trabaja domingos.
 -- delete from public.horarios
 --  where dia_semana = 0
---    and barbero_id = (select id from public.barberos where nombre = 'Diego');
+--    and barbero_id = (select id from public.barberos where nombre = 'Bryan');
 
 -- Opción C · pausa para almorzar. Son DOS tramos el mismo día:
 -- delete from public.horarios where dia_semana = 1;
@@ -170,7 +177,7 @@ insert into public.bloqueos (barbero_id, inicio, fin, motivo) values
 /*
 insert into public.bloqueos (barbero_id, inicio, fin, motivo)
 select id, '2026-09-15 00:00-05', '2026-09-22 00:00-05', 'Vacaciones'
-from public.barberos where nombre = 'Diego';
+from public.barberos where nombre = 'Bryan';
 */
 
 

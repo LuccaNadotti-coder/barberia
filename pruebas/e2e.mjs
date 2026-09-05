@@ -1,7 +1,7 @@
 /**
  * PRUEBAS DE EXTREMO A EXTREMO
  *
- *   1. npm run dev          (en otra terminal)
+ *   1. npm run dev:pruebas  (en otra terminal)
  *   2. npm run test:e2e
  *
  * Golpea la app real contra la base real y comprueba las reglas que no se
@@ -32,6 +32,15 @@ if (!SB || !ANON || !SVC) {
   console.error('Faltan variables de Supabase en .env.local')
   process.exit(1)
 }
+
+/**
+ * Con TURNSTILE_SECRET_KEY configurada, /api/reservar rechaza (403) cualquier
+ * petición sin token: verificarTurnstile() corta antes de llamar a Cloudflare.
+ * Estas pruebas no tienen navegador que resuelva el widget, así que el servidor
+ * tiene que arrancar con el secreto de PRUEBA de Cloudflare, que da por bueno
+ * cualquier token. De eso se encarga `npm run dev:pruebas`.
+ */
+const TOKEN_TURNSTILE = 'token-de-prueba'
 
 const hAnon = { apikey: ANON, Authorization: `Bearer ${ANON}` }
 const hSvc = { apikey: SVC, Authorization: `Bearer ${SVC}`, 'Content-Type': 'application/json' }
@@ -95,6 +104,7 @@ async function main() {
     body: JSON.stringify({
       servicio_id: servicio.id, barbero_id: barbero.id, inicio: slot,
       nombre: 'Ana Prueba', telefono: '999 111 222', email: 'ana@example.com',
+      turnstile: TOKEN_TURNSTILE,
     }),
   })
   let j = await r.json()
@@ -130,7 +140,7 @@ async function main() {
   // ── 3 · Mismo slot otra vez → 409 ───────────────────────────────────────────
   r = await fetch(`${APP}/api/reservar`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ servicio_id: servicio.id, barbero_id: barbero.id, inicio: slot, nombre: 'Otro', telefono: '988777666' }),
+    body: JSON.stringify({ servicio_id: servicio.id, barbero_id: barbero.id, inicio: slot, nombre: 'Otro', telefono: '988777666', turnstile: TOKEN_TURNSTILE }),
   })
   j = await r.json()
   r.status === 409 && j.conflicto ? ok('slot ya tomado → 409', j.error) : no('conflicto', `${r.status}`)
@@ -142,7 +152,7 @@ async function main() {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         servicio_id: servicio.id, barbero_id: barbero.id, inicio: libres.at(-1),
-        nombre: 'Hacker Prueba', telefono: '988777666',
+        nombre: 'Hacker Prueba', telefono: '988777666', turnstile: TOKEN_TURNSTILE,
         precio_centimos: 1, adelanto_centimos: 1, estado: 'confirmada',
       }),
     })

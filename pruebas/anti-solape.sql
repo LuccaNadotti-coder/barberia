@@ -10,19 +10,19 @@
 -- ═══════════════════════════════════════════════════════════════════════════════
 do $$
 declare
-  v_marco uuid; v_diego uuid; v_srv50 uuid; v_srv30 uuid; v_cli uuid;
+  v_jeanpier uuid; v_bryan uuid; v_srv50 uuid; v_srv30 uuid; v_cli uuid;
   t1600 timestamptz;
   n int;
   am text;
   cod text;
   r text := '';
 begin
-  select id into v_marco from barberos  where nombre = 'Marco';
-  select id into v_diego from barberos  where nombre = 'Diego';
+  select id into v_jeanpier from barberos  where nombre = 'Jeanpier';
+  select id into v_bryan from barberos  where nombre = 'Bryan';
   select id into v_srv50 from servicios where nombre = 'Corte + barba';
   select id into v_srv30 from servicios where nombre = 'Corte clásico';
 
-  if v_marco is null or v_srv50 is null then
+  if v_jeanpier is null or v_srv50 is null then
     raise exception 'Faltan los datos semilla. Corre antes sql/01-schema.sql.';
   end if;
 
@@ -59,9 +59,9 @@ begin
   begin
     insert into citas (codigo, cliente_id, barbero_id, servicio_id, servicio_nombre,
                        duracion_min, precio_centimos, adelanto_centimos, inicio, fin, estado)
-    values ('BR-TST01', v_cli, v_marco, v_srv50, 'Corte + barba', 50, 4500, 2250,
+    values ('BR-TST01', v_cli, v_jeanpier, v_srv50, 'Corte + barba', 50, 4500, 2250,
             t1600, t1600 + interval '50 min', 'confirmada');
-    r := r || E'\n\n(a) cita normal Marco 16:00-16:50 ......... PASA   insertada';
+    r := r || E'\n\n(a) cita normal Jeanpier 16:00-16:50 ...... PASA   insertada';
   exception when others then
     r := r || E'\n\n(a) cita normal ........................... FALLA  ' || sqlstate || ' ' || sqlerrm;
   end;
@@ -70,17 +70,17 @@ begin
   begin
     insert into citas (codigo, cliente_id, barbero_id, servicio_id, servicio_nombre,
                        duracion_min, precio_centimos, adelanto_centimos, inicio, fin, estado)
-    values ('BR-TST02', v_cli, v_marco, v_srv30, 'Corte clásico', 30, 3000, 1500,
+    values ('BR-TST02', v_cli, v_jeanpier, v_srv30, 'Corte clásico', 30, 3000, 1500,
             t1600 + interval '30 min', t1600 + interval '60 min', 'pendiente_pago');
-    r := r || E'\n(b) solape parcial Marco 16:30-17:00 ...... FALLA  ¡se insertó! el EXCLUDE no actuó';
+    r := r || E'\n(b) solape parcial Jeanpier 16:30-17:00 ... FALLA  ¡se insertó! el EXCLUDE no actuó';
   exception when exclusion_violation then
-    r := r || E'\n(b) solape parcial Marco 16:30-17:00 ...... PASA   ' || sqlstate || ' rechazado';
+    r := r || E'\n(b) solape parcial Jeanpier 16:30-17:00 ... PASA   ' || sqlstate || ' rechazado';
   when others then
     r := r || E'\n(b) solape parcial ........................ FALLA  ' || sqlstate || ' ' || sqlerrm;
   end;
 
   select count(*) into n from citas
-   where barbero_id = v_marco and inicio = t1600 + interval '30 min';
+   where barbero_id = v_jeanpier and inicio = t1600 + interval '30 min';
   r := r || E'\n(b2) filas con inicio exacto 16:30 ........ '
          || case when n = 0 then 'PASA   0 filas: un UNIQUE(barbero_id,inicio) NO lo habría visto'
                  else 'FALLA  ' || n end;
@@ -89,9 +89,9 @@ begin
   begin
     insert into citas (codigo, cliente_id, barbero_id, servicio_id, servicio_nombre,
                        duracion_min, precio_centimos, adelanto_centimos, inicio, fin, estado)
-    values ('BR-TST03', v_cli, v_diego, v_srv50, 'Corte + barba', 50, 4500, 2250,
+    values ('BR-TST03', v_cli, v_bryan, v_srv50, 'Corte + barba', 50, 4500, 2250,
             t1600, t1600 + interval '50 min', 'confirmada');
-    r := r || E'\n(c) mismo horario, Diego .................. PASA   insertada en paralelo';
+    r := r || E'\n(c) mismo horario, Bryan .................. PASA   insertada en paralelo';
   exception when others then
     r := r || E'\n(c) mismo horario, otro barbero ........... FALLA  ' || sqlstate || ' ' || sqlerrm;
   end;
@@ -101,7 +101,7 @@ begin
   begin
     insert into citas (codigo, cliente_id, barbero_id, servicio_id, servicio_nombre,
                        duracion_min, precio_centimos, adelanto_centimos, inicio, fin, estado)
-    values ('BR-TST04', v_cli, v_marco, v_srv50, 'Corte + barba', 50, 4500, 2250,
+    values ('BR-TST04', v_cli, v_jeanpier, v_srv50, 'Corte + barba', 50, 4500, 2250,
             t1600, t1600 + interval '50 min', 'pendiente_pago');
     r := r || E'\n(d) reutilizar un slot liberado ........... PASA   el hueco volvió al pool';
   exception when others then
@@ -110,7 +110,7 @@ begin
 
   -- ── (d2) horarios_disponibles no ofrece lo ocupado ─────────────────────────
   select count(*) into n
-  from horarios_disponibles(v_marco, v_srv30, (t1600 at time zone 'America/Lima')::date) h
+  from horarios_disponibles(v_jeanpier, v_srv30, (t1600 at time zone 'America/Lima')::date) h
   where tstzrange(h, h + interval '30 min', '[)') && tstzrange(t1600, t1600 + interval '50 min', '[)');
   r := r || E'\n(d2) slots ofrecidos que se solapan ....... '
          || case when n = 0 then 'PASA   0' else 'FALLA  ofrece ' || n || ' hora(s) imposible(s)' end;

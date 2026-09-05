@@ -417,9 +417,15 @@ quedaría "en revisión" sin imagen que revisar.
 npm run typecheck     # siempre
 npm run build         # si tocaste UI
 npm run test:lib      # librerías puras: .ics, teléfonos, magic bytes
-npm run test:e2e      # con `npm run dev` corriendo en otra terminal
+npm run test:e2e      # con `npm run dev:pruebas` corriendo en otra terminal
 npm run test:panel    # login real + aislamiento por RLS entre barberos
 ```
+
+`dev:pruebas`, y no `dev`, porque desde que `TURNSTILE_SECRET_KEY` tiene valor
+real, `/api/reservar` devuelve **403** a toda petición sin token de widget —y un
+script no tiene navegador que lo resuelva—. `scripts/dev-pruebas.mjs` levanta
+Next con el secreto de prueba público de Cloudflare, que acepta cualquier token.
+No toca `.env.local`: Next respeta lo que ya venga en `process.env`.
 
 Y si tocaste `sql/01-schema.sql`, pega `pruebas/anti-solape.sql` en el SQL
 Editor de Supabase. Son 17 comprobaciones: solape parcial, GiST vs UNIQUE,

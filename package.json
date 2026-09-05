@@ -5,6 +5,7 @@
   "description": "Sistema de reservas para barbería — sede única, Lima, Perú.",
   "scripts": {
     "dev": "next dev",
+    "dev:pruebas": "node scripts/dev-pruebas.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

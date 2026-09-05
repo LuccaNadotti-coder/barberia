@@ -61,21 +61,21 @@ En **Authentication → Users → Add user**, crea un usuario con correo y
 contraseña por cada barbero. Luego enlázalos con sus filas de `barberos`:
 
 ```sql
-update barberos set user_id = (select id from auth.users where email = 'marco@tubarberia.com')
-where nombre = 'Marco';
+update barberos set user_id = (select id from auth.users where email = 'jeanpier@eltemplo.com')
+where nombre = 'Jeanpier';
 
-update barberos set user_id = (select id from auth.users where email = 'diego@tubarberia.com')
-where nombre = 'Diego';
+update barberos set user_id = (select id from auth.users where email = 'bryan@eltemplo.com')
+where nombre = 'Bryan';
 ```
 
 Ajusta también sus datos reales:
 
 ```sql
 update barberos
-set telefono = '51987654321',      -- el suyo, para los enlaces de WhatsApp
-    yape_numero = '987654321',     -- adónde llegan los adelantos
-    yape_titular = 'Marco A. Quispe'
-where nombre = 'Marco';
+set telefono = '51999111222',      -- el suyo, para los enlaces de WhatsApp
+    yape_numero = '999111222',     -- adónde llegan los adelantos
+    yape_titular = 'Jeanpier Ramos'
+where nombre = 'Jeanpier';
 ```
 
 `es_admin = true` marca al dueño: ve las citas de todos. Los demás sólo ven las

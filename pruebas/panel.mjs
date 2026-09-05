@@ -108,18 +108,26 @@ async function main() {
     }
 
     const barbero = barberos.find((b) => b.nombre === c.nombre)
-    const vistas = await (await fetch(`${SB}/rest/v1/citas?select=id,barbero_id`, { headers: comoBarbero(token) })).json()
-    const propias = vistas.filter((x) => x.barbero_id === barbero.id).length
-    const ajenas = vistas.length - propias
+    const vistas = await (await fetch(`${SB}/rest/v1/citas?select=id,codigo,barbero_id`, { headers: comoBarbero(token) })).json()
+
+    // Sólo se miden las citas SEMBRADAS aquí (código BR-PNL*). La barbería en
+    // marcha tiene citas reales, y contra el total de la tabla estas cuentas
+    // fallarían sin que el RLS tuviera nada que ver.
+    const delaPrueba = vistas.filter((x) => x.codigo?.startsWith('BR-PNL'))
+    const propias = delaPrueba.filter((x) => x.barbero_id === barbero.id).length
+    const ajenas = delaPrueba.length - propias
+    // Esta sí es global: un barbero no debe ver NINGUNA cita de otro, ni de
+    // prueba ni real.
+    const ajenasReales = vistas.filter((x) => x.barbero_id !== barbero.id).length
 
     if (barbero.es_admin) {
-      vistas.length === total
-        ? ok(`${c.nombre} es admin: ve TODAS`, `${vistas.length} de ${total}`)
-        : no(`${c.nombre} admin`, `ve ${vistas.length} de ${total}`)
+      delaPrueba.length === total
+        ? ok(`${c.nombre} es admin: ve TODAS`, `${delaPrueba.length} de ${total} sembradas`)
+        : no(`${c.nombre} admin`, `ve ${delaPrueba.length} de ${total} sembradas`)
     } else {
-      ajenas === 0 && propias === total / 2
+      ajenasReales === 0 && propias === total / 2
         ? ok(`${c.nombre} ve SÓLO las suyas`, `${propias} propias, 0 ajenas (de ${total})`)
-        : no(`${c.nombre} aislamiento`, `${propias} propias, ${ajenas} ajenas`)
+        : no(`${c.nombre} aislamiento`, `${propias} propias, ${ajenas} ajenas de prueba, ${ajenasReales} ajenas en total`)
     }
 
     // Ni siquiera puede modificar las de otro.

@@ -911,8 +911,10 @@ on conflict (nombre) do nothing;
 
 insert into public.barberos (nombre, telefono, yape_numero, yape_titular, es_admin, orden)
 values
-  ('Marco',  '51987654321', '987654321', 'Marco A. Quispe',  true,  1),
-  ('Diego',  '51912345678', '912345678', 'Diego R. Flores',  false, 2)
+  -- Teléfonos y titulares de Yape son DE RELLENO: cámbialos por los reales
+  -- antes de abrir al público (el yape_numero es al que el cliente adelanta).
+  ('Jeanpier', '51999111222', '999111222', 'Jeanpier Ramos', true,  1),
+  ('Bryan',    '51999333444', '999333444', 'Bryan Ramos',    false, 2)
 on conflict (nombre) do nothing;
 
 -- Jornada: lunes a sábado 09:00–20:00, domingo 10:00–14:00.
@@ -943,8 +945,8 @@ begin;
 -- Vista de apoyo: próximo lunes a las 16:00 hora de Lima, y los ids de semilla.
 create temp view _t as
 select
-  (select id from public.barberos  where nombre = 'Marco')         as marco,
-  (select id from public.barberos  where nombre = 'Diego')         as diego,
+  (select id from public.barberos  where nombre = 'Jeanpier')      as jeanpier,
+  (select id from public.barberos  where nombre = 'Bryan')         as bryan,
   (select id from public.servicios where nombre = 'Corte + barba') as srv50,
   (select id from public.servicios where nombre = 'Corte clásico') as srv30,
   ((date_trunc('week', (now() at time zone 'America/Lima'))::date + 7) + time '16:00')
@@ -953,10 +955,10 @@ select
 insert into public.clientes (nombre, telefono) values ('Cliente Prueba', '51900000001')
   on conflict (telefono) do update set nombre = excluded.nombre;
 
--- ── (a) Cita normal 16:00–16:50 con Marco ────────────────────────────── ✔ 1 fila
+-- ── (a) Cita normal 16:00–16:50 con Jeanpier ─────────────────────────── ✔ 1 fila
 insert into public.citas (codigo, cliente_id, barbero_id, servicio_id, servicio_nombre,
                           duracion_min, precio_centimos, adelanto_centimos, inicio, fin, estado)
-select 'BR-TST01', c.id, t.marco, t.srv50, 'Corte + barba', 50, 4500, 2250,
+select 'BR-TST01', c.id, t.jeanpier, t.srv50, 'Corte + barba', 50, 4500, 2250,
        t.t1600, t.t1600 + interval '50 min', 'confirmada'
 from _t t, public.clientes c where c.telefono = '51900000001';
 
@@ -965,7 +967,7 @@ from _t t, public.clientes c where c.telefono = '51900000001';
 --    pasar. El EXCLUDE ... USING gist lo detecta porque los rangos se cruzan.
 insert into public.citas (codigo, cliente_id, barbero_id, servicio_id, servicio_nombre,
                           duracion_min, precio_centimos, adelanto_centimos, inicio, fin, estado)
-select 'BR-TST02', c.id, t.marco, t.srv30, 'Corte clásico', 30, 3000, 1500,
+select 'BR-TST02', c.id, t.jeanpier, t.srv30, 'Corte clásico', 30, 3000, 1500,
        t.t1600 + interval '30 min', t.t1600 + interval '60 min', 'pendiente_pago'
 from _t t, public.clientes c where c.telefono = '51900000001';
 --    esperado: ERROR 23P01 — conflicting key value violates exclusion constraint
@@ -975,7 +977,7 @@ from _t t, public.clientes c where c.telefono = '51900000001';
 -- ── (c) Mismo horario, OTRO barbero ──────────────────────────────────── ✔ 1 fila
 insert into public.citas (codigo, cliente_id, barbero_id, servicio_id, servicio_nombre,
                           duracion_min, precio_centimos, adelanto_centimos, inicio, fin, estado)
-select 'BR-TST03', c.id, t.diego, t.srv50, 'Corte + barba', 50, 4500, 2250,
+select 'BR-TST03', c.id, t.bryan, t.srv50, 'Corte + barba', 50, 4500, 2250,
        t.t1600, t.t1600 + interval '50 min', 'confirmada'
 from _t t, public.clientes c where c.telefono = '51900000001';
 
@@ -983,7 +985,7 @@ from _t t, public.clientes c where c.telefono = '51900000001';
 update public.citas set estado = 'liberada' where codigo = 'BR-TST01';
 insert into public.citas (codigo, cliente_id, barbero_id, servicio_id, servicio_nombre,
                           duracion_min, precio_centimos, adelanto_centimos, inicio, fin, estado)
-select 'BR-TST04', c.id, t.marco, t.srv50, 'Corte + barba', 50, 4500, 2250,
+select 'BR-TST04', c.id, t.jeanpier, t.srv50, 'Corte + barba', 50, 4500, 2250,
        t.t1600, t.t1600 + interval '50 min', 'pendiente_pago'
 from _t t, public.clientes c where c.telefono = '51900000001';
 

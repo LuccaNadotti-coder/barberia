@@ -21,6 +21,9 @@ respaldos/
 supabase/.temp/
 supabase/.branches/
 
+# Permisos personales de Claude Code. Son de esta maquina, no del proyecto.
+.claude/settings.local.json
+
 .DS_Store
 *.pem
 npm-debug.log*
