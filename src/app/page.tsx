@@ -41,7 +41,34 @@ export default async function Inicio() {
         yapeQrUrl={QR}
         turnstileSiteKey={claveSitioTurnstile()}
       />
+      <Pie />
     </main>
+  )
+}
+
+/**
+ * El enlace a /cita no es decorativo: el flujo no guarda nada en el teléfono,
+ * así que quien recarga la página a mitad del pago necesita esta puerta para
+ * volver a su ticket. Si desaparece de aquí, se queda sin salida.
+ */
+function Pie() {
+  return (
+    <footer className="border-t border-tinta-600 px-4 py-8">
+      <div className="mx-auto flex max-w-[440px] flex-col items-center gap-3 text-center">
+        <p className="text-[13px] text-hueso-tenue">
+          ¿Ya reservaste y perdiste el ticket?{' '}
+          <a href="/cita" className="text-laton underline underline-offset-4">
+            Retoma tu pago
+          </a>
+        </p>
+        <p className="text-[12px] text-hueso-apagado">
+          {DIRECCION && <span className="block">{DIRECCION}</span>}
+          <a href="/privacidad" className="underline underline-offset-4 hover:text-hueso-tenue">
+            Privacidad
+          </a>
+        </p>
+      </div>
+    </footer>
   )
 }
 

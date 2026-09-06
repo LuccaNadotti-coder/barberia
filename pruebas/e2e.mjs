@@ -182,6 +182,58 @@ async function main() {
   })
   r.status === 401 ? ok('POST /api/panel/validar sin sesión → 401') : no('auth del panel', `${r.status}`)
 
+  // ── 6 bis · Retomar la reserva con código + celular ─────────────────────────
+  //
+  // El flujo no guarda nada en el teléfono, así que quien recarga la página a
+  // mitad del pago sólo puede volver por aquí. Si esto se rompe, el cliente ya
+  // yapeó y no tiene forma de subir el comprobante.
+  //
+  // Va ANTES de cancelar la cita: una cancelada no se puede recuperar (y eso
+  // también se comprueba, más abajo).
+  {
+    const buscar = (codigo, telefono) =>
+      fetch(`${APP}/api/cita`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codigo, telefono, turnstile: TOKEN_TURNSTILE }),
+      })
+
+    const rb = await buscar(res.codigo.toLowerCase(), '999 111 222')
+    const jb = await rb.json()
+    rb.status === 200 && jb.reserva?.id === res.id
+      ? ok('POST /api/cita recupera la reserva', `${res.codigo} · normaliza minúsculas y espacios`)
+      : no('POST /api/cita', `${rb.status} ${JSON.stringify(jb).slice(0, 160)}`)
+
+    jb.reserva && jb.reserva.cliente_email === null
+      ? ok('la recuperación NO devuelve el correo', 'sólo se demostró tener el celular')
+      : no('fuga de datos en /api/cita', `cliente_email=${JSON.stringify(jb.reserva?.cliente_email)}`)
+
+    // Los dos mensajes tienen que ser IDÉNTICOS. Si difieren, esto es un
+    // oráculo: pruebas códigos con un celular cualquiera y el error te dice
+    // cuáles existen.
+    const malTel = await buscar(res.codigo, '988777666')
+    const malCod = await buscar('BR-XXXXX', '999 111 222')
+    const [jt, jc] = [await malTel.json(), await malCod.json()]
+
+    malTel.status === 404 && malCod.status === 404
+      ? ok('datos incorrectos → 404', 'ni 400 ni 200')
+      : no('/api/cita con datos incorrectos', `${malTel.status} / ${malCod.status}`)
+
+    jt.error === jc.error
+      ? ok('mismo error para código y celular', 'no sirve para enumerar códigos')
+      : no('ORÁCULO DE ENUMERACIÓN', `"${jt.error}" ≠ "${jc.error}"`)
+
+    // Sin token de Turnstile no se puede iterar con un script.
+    const sinToken = await fetch(`${APP}/api/cita`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ codigo: res.codigo, telefono: '999 111 222' }),
+    })
+    sinToken.status === 403 || sinToken.status === 200
+      ? ok('Turnstile exigido en /api/cita', `${sinToken.status} (403 en producción)`)
+      : no('anti-bots de /api/cita', `${sinToken.status}`)
+  }
+
   // ── 7 · Cancelar libera el slot ─────────────────────────────────────────────
   // Se hace por la base (service_role) porque cancelar desde la API exige
   // sesión de barbero; lo que se comprueba aquí es la consecuencia: que el
@@ -195,6 +247,18 @@ async function main() {
   trasCancelar.some((h) => h === res.inicio)
     ? ok('cancelar devuelve el slot al pool', `${antesDeCancelar} → ${trasCancelar.length} slots`)
     : no('cancelar', `el horario ${hm(res.inicio)} sigue sin ofrecerse`)
+
+  // Y una cita cancelada ya no se puede retomar: si se pudiera, el cliente
+  // subiría una captura a un horario que ya es de otra persona.
+  {
+    const rc = await fetch(`${APP}/api/cita`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ codigo: res.codigo, telefono: '999 111 222', turnstile: TOKEN_TURNSTILE }),
+    })
+    rc.status === 404
+      ? ok('una cita cancelada no se retoma', '404')
+      : no('/api/cita con cita cancelada', `${rc.status}`)
+  }
 
   // ── 8 · Las NEXT_PUBLIC_ llegan al bundle del navegador ─────────────────────
   //

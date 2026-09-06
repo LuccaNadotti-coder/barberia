@@ -728,7 +728,98 @@ begin
 end $$;
 
 
--- 6.4 ── liberar_vencidas ──────────────────────────────────────────────────────
+-- 6.4 ── buscar_reserva ────────────────────────────────────────────────────────
+-- Recupera una reserva ya creada a partir de su código y el celular con el que
+-- se hizo. Existe porque el flujo NO usa localStorage (ver CLAUDE.md §5): si la
+-- persona recarga o cierra la pestaña después de reservar, sin esto pierde el
+-- ticket y no puede subir la captura del Yape — habiendo pagado ya.
+--
+-- Dos factores, y los dos hacen falta: el código son 31^5 ≈ 28,6 millones de
+-- combinaciones y el celular es el otro. Además /api/cita exige Turnstile, así
+-- que no se puede iterar con un script.
+--
+-- El mensaje de error es EL MISMO para «código que no existe» y para «celular
+-- que no corresponde». Si fueran distintos, esto sería un oráculo para
+-- averiguar qué códigos son válidos.
+--
+-- Devuelve la MISMA forma que crear_reserva() para que la interfaz reutilice la
+-- pantalla de pago tal cual, con una excepción: `cliente_email` va siempre null.
+-- Quien recupera la reserva demostró tener el celular, no el correo, así que no
+-- se le enseña un dato que no aportó.
+create or replace function public.buscar_reserva(
+  p_codigo   text,
+  p_telefono text
+) returns jsonb
+language plpgsql volatile security definer set search_path = public, extensions, pg_temp as $$
+declare
+  v_cita     public.citas%rowtype;
+  v_cliente  public.clientes%rowtype;
+  v_barbero  public.barberos%rowtype;
+  v_codigo   text := upper(btrim(coalesce(p_codigo, '')));
+begin
+  if p_telefono !~ '^51[0-9]{9}$' then
+    raise exception 'No encontramos ninguna reserva con esos datos.' using errcode = '22023';
+  end if;
+  if v_codigo !~ '^BR-[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{5}$' then
+    raise exception 'No encontramos ninguna reserva con esos datos.' using errcode = '22023';
+  end if;
+
+  select c.* into v_cita
+  from public.citas c
+  join public.clientes cl on cl.id = c.cliente_id
+  where c.codigo = v_codigo
+    and cl.telefono = p_telefono;
+
+  if not found then
+    raise exception 'No encontramos ninguna reserva con esos datos.' using errcode = '22023';
+  end if;
+
+  -- Si el plazo pasó, la cita está muerta aunque el cron no la haya tocado.
+  --
+  -- AQUÍ NO SE HACE UPDATE, y no es un olvido: en PL/pgSQL un `raise` deshace
+  -- todo lo que la función hizo desde el bloque de excepción que lo captura, así
+  -- que un `update ... set estado='liberada'` seguido de un `raise` no persiste
+  -- NUNCA. Se detectó ejecutando: la prueba decía `pendiente_pago` donde el
+  -- código prometía `liberada`. Y no hace falta: horarios_disponibles() ya
+  -- ignora las vencidas y crear_reserva() las barre antes de insertar, así que
+  -- el horario está libre de todas formas.
+  if v_cita.estado = 'pendiente_pago'
+     and v_cita.expira_en is not null
+     and v_cita.expira_en < now() then
+    raise exception 'El plazo de 15 minutos venció y el horario se liberó. Vuelve a reservar.'
+      using errcode = '22023';
+  end if;
+
+  if v_cita.estado not in ('pendiente_pago', 'en_revision', 'confirmada') then
+    raise exception 'Esa reserva ya no está activa. Si crees que es un error, escríbenos.'
+      using errcode = '22023';
+  end if;
+
+  select * into v_cliente from public.clientes where id = v_cita.cliente_id;
+  select * into v_barbero from public.barberos where id = v_cita.barbero_id;
+
+  return jsonb_build_object(
+    'id',                v_cita.id,
+    'codigo',            v_cita.codigo,
+    'inicio',            v_cita.inicio,
+    'fin',               v_cita.fin,
+    'estado',            v_cita.estado,
+    'expira_en',         v_cita.expira_en,
+    'servicio_nombre',   v_cita.servicio_nombre,
+    'duracion_min',      v_cita.duracion_min,
+    'precio_centimos',   v_cita.precio_centimos,
+    'adelanto_centimos', v_cita.adelanto_centimos,
+    'barbero_nombre',    v_barbero.nombre,
+    'yape_numero',       v_barbero.yape_numero,
+    'yape_titular',      v_barbero.yape_titular,
+    'cliente_nombre',    v_cliente.nombre,
+    'cliente_telefono',  v_cliente.telefono,
+    'cliente_email',     null
+  );
+end $$;
+
+
+-- 6.5 ── liberar_vencidas ──────────────────────────────────────────────────────
 -- Para el cron de GitHub Actions (cada 5 min). Devuelve cuántas liberó.
 create or replace function public.liberar_vencidas()
 returns integer
@@ -791,6 +882,7 @@ grant select                 on public.auditoria      to authenticated;
 grant execute on function public.horarios_disponibles(uuid, uuid, date, interval) to anon, authenticated;
 grant execute on function public.crear_reserva(uuid, uuid, timestamptz, text, text, text, text) to anon, authenticated;
 grant execute on function public.registrar_captura(uuid, text, text) to anon, authenticated;
+grant execute on function public.buscar_reserva(text, text) to anon, authenticated;
 -- liberar_vencidas queda solo para service_role (que no necesita GRANT explícito
 -- porque es superusuario-like en Supabase, pero lo dejamos documentado).
 grant execute on function public.liberar_vencidas() to service_role;

@@ -13,7 +13,7 @@
     "test:e2e": "node pruebas/e2e.mjs",
     "test:panel": "node pruebas/panel.mjs",
     "test:lib": "tsx pruebas/librerias.ts",
-    "tipos": "supabase gen types typescript --linked --schema public > src/lib/basedatos.ts",
+    "tipos": "supabase gen types typescript --linked --schema public > src/lib/basedatos.tmp && node -e \"const f=require('fs');const t=f.readFileSync('src/lib/basedatos.tmp','utf8');if(t.length<500)throw new Error('salida vacia o truncada: no se sobrescribe basedatos.ts');f.renameSync('src/lib/basedatos.tmp','src/lib/basedatos.ts')\"",
     "cron:liberar": "tsx scripts/liberar-slots.ts",
     "cron:recordatorios": "tsx scripts/recordatorios.ts",
     "cron:respaldo": "tsx scripts/respaldo-mensual.ts"

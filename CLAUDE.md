@@ -156,6 +156,36 @@ barbero desde la pestaña "Mañana" del panel, uno a uno.
 | Las imágenes se validan por **magic bytes**, no por extensión ni Content-Type | `esImagenReal()` — ambos los controla el atacante |
 | Sesión del barbero en **cookies**, no en localStorage | `@supabase/ssr`. Un XSS no puede leer el token |
 | Sin `localStorage`/`sessionStorage` en todo el frontend | — |
+| Retomar una reserva exige código **y** celular, más Turnstile | `buscar_reserva()` + `api/cita/` |
+| CSP, HSTS y `no-store` en `/panel` y `/cita` | `next.config.mjs` |
+
+### Retomar una reserva: por qué está montado así
+
+No guardar nada en el teléfono tiene un precio: si la persona recarga a mitad
+del pago, pierde el ticket y no puede subir la captura **habiendo ya yapeado**.
+`/cita` cierra ese agujero sin traicionar la regla.
+
+Lo que lo hace seguro, y ninguna de las tres piezas sobra:
+
+1. **Dos factores.** El código son 31⁵ ≈ 28,6 millones de combinaciones; el
+   celular es el otro. Ninguno basta solo.
+2. **Un único mensaje de error.** «Código que no existe» y «celular que no
+   corresponde» responden EXACTAMENTE lo mismo. Si difirieran, esto sería un
+   oráculo para descubrir qué códigos son válidos probando con un celular
+   cualquiera. Hay una prueba e2e que compara las dos cadenas.
+3. **Turnstile**, igual que en `/api/reservar`. Sin él, lo anterior se ataca
+   con un script.
+
+Y no devuelve `cliente_email`: quien recupera demostró tener el celular, no el
+correo. También lo cubre una prueba.
+
+### La CSP tiene `'unsafe-inline'` en `script-src`, y es a propósito
+
+Next inyecta los scripts de hidratación en línea. Quitarla exige un nonce por
+petición, o sea middleware en cada request. Aun con ella, la CSP bloquea lo que
+más duele: cargar código de un host ajeno y filtrar datos con un `fetch` a otro
+dominio. Los hosts permitidos son tres y cada uno está por algo concreto —
+míralos comentados en `next.config.mjs` antes de tocarlos.
 
 `src/lib/sesion.ts` importa `next/headers` → **sólo servidor**. El cliente de
 navegador vive aparte en `src/lib/sesion-navegador.ts`. Si los juntas, el build
@@ -406,15 +436,24 @@ src/lib/
   ics.ts                   Generador .ics (RFC 5545) sin dependencias
   r2.ts                    SigV4 a mano (el SDK de AWS son 15 MB para 2 operaciones)
 
+src/app/
+  page.tsx                 Portada + flujo de reserva
+  cita/                    Retomar una reserva (código + celular)
+  privacidad/              Aviso de la Ley 29733
+  panel/                   Login y panel del barbero
+
 src/app/api/
   disponibilidad/          GET  → horarios_disponibles()
   reservar/                POST → crear_reserva()
+  cita/                    POST → buscar_reserva()  (Turnstile + 2 factores)
   captura/                 POST → magic bytes + R2 + registrar_captura() + correo
   panel/validar/           POST → el toque del barbero
 
 src/components/
   FlujoReserva.tsx         5 pasos + cronómetro + subida
+  RecuperarReserva.tsx     Formulario de /cita; al encontrarla delega en el flujo
   Ticket.tsx               El elemento firma
+  Turnstile.tsx            El widget, compartido por la reserva y /cita
   PanelBarbero.tsx         3 pestañas
   ui.tsx                   Primitivas
 

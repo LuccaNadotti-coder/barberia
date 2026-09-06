@@ -5,6 +5,7 @@ import { cuentaAtras, fechaLarga, hora, hora12, proximosDias, soles } from '@/li
 import type { BarberoPublico, Reserva, Servicio } from '@/lib/supabase'
 import { telefonoLegible } from '@/lib/validacion'
 import { Ticket } from './Ticket'
+import { Turnstile } from './Turnstile'
 import { Aviso, Boton, Campo, Girador, Opcion, Rotulo, cx } from './ui'
 
 /**
@@ -30,6 +31,12 @@ interface Props {
   direccion?: string
   yapeQrUrl?: string
   turnstileSiteKey?: string
+  /**
+   * Reserva ya existente, recuperada en /cita con código + celular. Si viene,
+   * el flujo arranca directamente en la pantalla de pago (o en el ticket, si
+   * la captura ya estaba subida) en vez de en el paso 1.
+   */
+  reservaInicial?: Reserva
 }
 
 interface Formulario {
@@ -39,15 +46,6 @@ interface Formulario {
   notas: string
 }
 
-declare global {
-  interface Window {
-    turnstile?: {
-      render: (el: HTMLElement, opts: Record<string, unknown>) => string
-      remove: (id: string) => void
-    }
-  }
-}
-
 export function FlujoReserva({
   servicios,
   barberos,
@@ -55,8 +53,14 @@ export function FlujoReserva({
   direccion,
   yapeQrUrl,
   turnstileSiteKey,
+  reservaInicial,
 }: Props) {
-  const [paso, setPaso] = useState(0)
+  // Una reserva recuperada ya pasó por los pasos 1-4. Si además tiene la
+  // captura subida, lo único que queda por enseñar es el ticket.
+  const yaSubida =
+    reservaInicial?.estado === 'en_revision' || reservaInicial?.estado === 'confirmada'
+
+  const [paso, setPaso] = useState(reservaInicial ? (yaSubida ? 5 : 4) : 0)
 
   const [servicio, setServicio] = useState<Servicio | null>(null)
   const [barbero, setBarbero] = useState<BarberoPublico | null>(null)
@@ -71,8 +75,10 @@ export function FlujoReserva({
   const [errorGeneral, setErrorGeneral] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
 
-  const [reserva, setReserva] = useState<Reserva | null>(null)
-  const [estadoFinal, setEstadoFinal] = useState<'en_revision' | null>(null)
+  const [reserva, setReserva] = useState<Reserva | null>(reservaInicial ?? null)
+  const [estadoFinal, setEstadoFinal] = useState<'en_revision' | 'confirmada' | null>(
+    yaSubida ? (reservaInicial!.estado as 'en_revision' | 'confirmada') : null,
+  )
 
   const dias = useMemo(() => proximosDias(14), [])
   const cima = useRef<HTMLDivElement>(null)
@@ -251,13 +257,22 @@ export function FlujoReserva({
     return (
       <div ref={cima} className="px-4 py-8">
         <div className="mx-auto max-w-[360px] pb-6 text-center">
-          <Rotulo>Listo</Rotulo>
+          <Rotulo>{estadoFinal === 'confirmada' ? 'Confirmada' : 'Listo'}</Rotulo>
           <h1 className="mt-2 font-display text-3xl uppercase leading-none text-hueso">
-            Recibimos tu pago
+            {estadoFinal === 'confirmada' ? 'Te esperamos' : 'Recibimos tu pago'}
           </h1>
           <p className="mt-3 text-[14px] leading-relaxed text-hueso-tenue">
-            {reserva.barbero_nombre} va a revisar tu comprobante y te confirma en un rato.
-            {reserva.cliente_email && ' Te avisamos por correo.'}
+            {estadoFinal === 'confirmada' ? (
+              <>
+                {reserva.barbero_nombre} ya validó tu adelanto. Guarda el código y preséntalo al
+                llegar.
+              </>
+            ) : (
+              <>
+                {reserva.barbero_nombre} va a revisar tu comprobante y te confirma en un rato.
+                {reserva.cliente_email && ' Te avisamos por correo.'}
+              </>
+            )}
           </p>
         </div>
 
@@ -522,6 +537,21 @@ export function FlujoReserva({
                 Al reservar guardamos tu horario por{' '}
                 <strong className="text-hueso-tenue">15 minutos</strong> mientras haces el Yape.
               </p>
+
+              {/* Ley 29733: hay que informar ANTES de recoger los datos, no
+                  después. Va aquí, pegado al botón, y no escondido en un pie. */}
+              <p className="text-center text-[12px] leading-relaxed text-hueso-apagado">
+                Usamos tu nombre y celular sólo para gestionar este turno.{' '}
+                <a
+                  href="/privacidad"
+                  target="_blank"
+                  rel="noopener"
+                  className="text-hueso-tenue underline underline-offset-4"
+                >
+                  Cómo tratamos tus datos
+                </a>
+                .
+              </p>
             </form>
 
             <Volver a={() => setPaso(2)} />
@@ -778,48 +808,6 @@ function Cronometro({ restante, expirado }: { restante: number; expirado: boolea
       </span>
     </div>
   )
-}
-
-/** Widget de Cloudflare Turnstile, cargado sólo cuando se llega al paso 4. */
-function Turnstile({
-  siteKey,
-  onToken,
-}: {
-  siteKey: string
-  onToken: (t: string | null) => void
-}) {
-  const caja = useRef<HTMLDivElement>(null)
-  const pintado = useRef(false)
-
-  useEffect(() => {
-    if (pintado.current) return
-
-    const pintar = () => {
-      if (!caja.current || !window.turnstile || pintado.current) return
-      pintado.current = true
-      window.turnstile.render(caja.current, {
-        sitekey: siteKey,
-        theme: 'dark',
-        callback: (t: string) => onToken(t),
-        'expired-callback': () => onToken(null),
-        'error-callback': () => onToken(null),
-      })
-    }
-
-    if (window.turnstile) {
-      pintar()
-      return
-    }
-
-    const s = document.createElement('script')
-    s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'
-    s.async = true
-    s.defer = true
-    s.onload = pintar
-    document.head.appendChild(s)
-  }, [siteKey, onToken])
-
-  return <div ref={caja} className="min-h-[65px]" />
 }
 
 const capitalizar = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)

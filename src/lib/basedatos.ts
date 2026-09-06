@@ -506,6 +506,10 @@ export type Database = {
     }
     Functions: {
       barbero_actual: { Args: never; Returns: string }
+      buscar_reserva: {
+        Args: { p_codigo: string; p_telefono: string }
+        Returns: Json
+      }
       crear_reserva: {
         Args: {
           p_barbero_id: string

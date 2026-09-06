@@ -36,6 +36,29 @@ export function telefonoLegible(e164: string): string {
 
 const uuid = z.string().uuid('Identificador inválido')
 
+/** Celular normalizado a 51XXXXXXXXX. Lo usan la reserva y la recuperación. */
+const campoTelefono = z.string().transform((v, ctx) => {
+  const n = normalizarTelefono(v)
+  if (!n) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Celular inválido. Debe tener 9 dígitos y empezar por 9.',
+    })
+    return z.NEVER
+  }
+  return n
+})
+
+/** El código que se imprime en el ticket: BR- y 5 caracteres sin ambigüedad. */
+const campoCodigo = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(
+    /^BR-[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{5}$/,
+    'El código tiene la forma BR-XXXXX. Míralo en tu ticket.',
+  )
+
 export const esquemaDisponibilidad = z.object({
   barbero_id: uuid,
   servicio_id: uuid,
@@ -63,19 +86,7 @@ export const esquemaReserva = z.object({
     .min(2, 'Escribe tu nombre')
     .max(80, 'Nombre demasiado largo')
     .regex(/^[\p{L}\p{M}' .-]+$/u, 'El nombre sólo admite letras'),
-  telefono: z
-    .string()
-    .transform((v, ctx) => {
-      const n = normalizarTelefono(v)
-      if (!n) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'Celular inválido. Debe tener 9 dígitos y empezar por 9.',
-        })
-        return z.NEVER
-      }
-      return n
-    }),
+  telefono: campoTelefono,
   email: z
     .string()
     .trim()
@@ -90,11 +101,18 @@ export type EntradaReserva = z.infer<typeof esquemaReserva>
 
 export const esquemaCaptura = z.object({
   cita_id: uuid,
-  codigo: z
-    .string()
-    .trim()
-    .toUpperCase()
-    .regex(/^BR-[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{5}$/, 'Código de reserva inválido'),
+  codigo: campoCodigo,
+})
+
+/**
+ * Recuperar una reserva ya creada. Dos factores: el código del ticket y el
+ * celular con el que se reservó. Turnstile va aparte, en la ruta, para que un
+ * script no pueda iterar códigos.
+ */
+export const esquemaBuscarCita = z.object({
+  codigo: campoCodigo,
+  telefono: campoTelefono,
+  turnstile: z.string().min(1, 'Falta la verificación anti-bots').optional(),
 })
 
 export const esquemaValidar = z.object({
