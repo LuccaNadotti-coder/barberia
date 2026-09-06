@@ -24,6 +24,27 @@ export function emailConfigurado(): boolean {
   return Boolean(opcional('RESEND_API_KEY') && opcional('RESEND_FROM'))
 }
 
+/**
+ * `RESEND_FROM` admite `correo@dominio` o `Nombre <correo@dominio>`. Cualquier
+ * otra cosa la rechaza Resend con «Invalid `from` field» y el correo no sale.
+ *
+ * Se comprueba aquí y no sólo en Resend porque el fallo llegaba tarde y callado:
+ * quedaba anotado en `notificaciones` y nadie lo miraba. Pasó en producción con
+ * un valor entre comillas copiado del `.env` al panel de Vercel — ver
+ * `sinComillas()` en entorno.ts.
+ */
+export function remitenteValido(from: string): boolean {
+  const t = from.trim()
+
+  // El caso que rompió producción: comillas envolviendo TODO el valor. Hay que
+  // mirarlo antes de extraer el correo de entre <>, porque si no se cuela: el
+  // correo de dentro es perfectamente válido y las comillas quedan fuera.
+  if (t.length >= 2 && (t[0] === '"' || t[0] === "'") && t.at(-1) === t[0]) return false
+
+  const correo = t.includes('<') ? t.slice(t.indexOf('<') + 1, t.indexOf('>')) : t
+  return /^[^@<>\s"']+@[^@<>\s"']+\.[a-zA-Z]{2,}$/.test(correo.trim())
+}
+
 export interface DatosCorreo {
   id: string
   codigo: string
@@ -196,9 +217,19 @@ async function enviar(
     return { ok: false, error: 'Resend no está configurado' }
   }
 
+  const remitente = requerida('RESEND_FROM')
+  if (!remitenteValido(remitente)) {
+    const error =
+      `RESEND_FROM no tiene forma de remitente: ${JSON.stringify(remitente)}. ` +
+      'Debe ser "correo@dominio" o "Nombre <correo@dominio>", SIN comillas ' +
+      'alrededor. Si lo pegaste en el panel de Vercel, quítaselas allí.'
+    console.error('[email]', error)
+    return { ok: false, error }
+  }
+
   try {
     const r = await resend().emails.send({
-      from: requerida('RESEND_FROM'),
+      from: remitente,
       to: d.cliente_email,
       subject: p.asunto,
       html: envoltorio(p.titulo, p.cuerpo),

@@ -12,6 +12,8 @@ import { generarICS, nombreICS } from '../src/lib/ics'
 import { cuentaAtras, soles } from '../src/lib/fechas'
 import { esImagenReal, normalizarTelefono, telefonoLegible } from '../src/lib/validacion'
 import { enlacePara, mensajeRecordatorio } from '../src/lib/whatsapp'
+import { _sinComillas, opcional, requerida } from '../src/lib/entorno'
+import { remitenteValido } from '../src/lib/email'
 
 let fallos = 0
 const ok = (t: string, d = '') =>
@@ -115,6 +117,35 @@ function main() {
   mensajeRecordatorio(datos).includes('S/ 15.00')
     ? ok('el recordatorio indica el saldo')
     : no('saldo en el mensaje')
+
+  // ── El fallo que dejó producción sin un solo correo ───────────────────────
+  //
+  // En un `.env`, dotenv quita las comillas de CLAVE="valor". El panel de
+  // Vercel no: el valor es lo que pegas. Copiar la línea del .env.local al
+  // dashboard metía las comillas dentro del valor, y Resend rechazaba TODOS
+  // los envíos con «Invalid `from` field». En local funcionaba.
+  console.log('\n\x1b[1mENTORNO Y REMITENTE\x1b[0m')
+  eq(_sinComillas('"Barbería <hola@x.com>"'), 'Barbería <hola@x.com>', 'quita comillas dobles')
+  eq(_sinComillas("'hola@x.com'"), 'hola@x.com', 'quita comillas simples')
+  eq(_sinComillas('hola@x.com'), 'hola@x.com', 'deja el valor limpio intacto')
+  eq(_sinComillas('  hola@x.com  '), 'hola@x.com', 'recorta espacios')
+  eq(_sinComillas('di "hola"'), 'di "hola"', 'no toca comillas interiores')
+
+  process.env.__PRUEBA_ENV = '"Barbería <hola@x.com>"'
+  eq(requerida('__PRUEBA_ENV'), 'Barbería <hola@x.com>', 'requerida() las quita')
+  eq(opcional('__PRUEBA_ENV'), 'Barbería <hola@x.com>', 'opcional() las quita')
+  process.env.__PRUEBA_ENV = '""'
+  eq(opcional('__PRUEBA_ENV'), undefined, 'unas comillas vacías cuentan como vacío')
+  delete process.env.__PRUEBA_ENV
+
+  remitenteValido('hola@x.com') ? ok('remitente: correo suelto') : no('remitente suelto')
+  remitenteValido('Barbería <hola@x.com>')
+    ? ok('remitente: con nombre')
+    : no('remitente con nombre')
+  !remitenteValido('"Barbería <hola@x.com>"')
+    ? ok('remitente: rechaza el valor entrecomillado', 'el fallo real de producción')
+    : no('REMITENTE ENTRECOMILLADO ACEPTADO', 'volvería a fallar en producción')
+  !remitenteValido('Barbería') ? ok('remitente: rechaza texto suelto') : no('texto suelto')
 
   console.log(
     fallos === 0

@@ -416,6 +416,39 @@ secreto inexistente y **rechazaba todas las reservas**. Las credenciales del
 ejemplo van vacías: vacío significa «no configurado», y eso el código lo
 entiende.
 
+### f) Las comillas de un `.env` NO se quitan en el panel de Vercel
+
+`RESEND_FROM="Barbería <onboarding@resend.dev>"` es correcto en un archivo
+`.env`: dotenv quita las comillas al leerlo. Pero al copiar esa línea al panel
+de Vercel, **el valor pasa a incluir las comillas**, porque ahí lo que pegas es
+literalmente el valor.
+
+Resend contestaba a cada envío:
+
+```
+Invalid `from` field. The email address needs to follow the
+`email@example.com` or `Name <email@example.com>` format.
+```
+
+**En producción no salía un solo correo.** Ni la confirmación con el `.ics` ni
+el recordatorio. En local funcionaba perfectamente, así que no se veía, y el
+fallo era **silencioso**: se anotaba en `notificaciones` con
+`estado = 'fallido'` y la reserva seguía adelante como si nada. Se descubrió
+mirando esa tabla después de una reserva real en producción, no ejecutando
+pruebas — las pruebas de correo no llegan a Resend.
+
+Arreglado en dos sitios:
+- `sinComillas()` en `entorno.ts`: `requerida()` y `opcional()` quitan las
+  comillas que envuelvan cualquier variable. Protege a todas, no sólo a esta.
+- `remitenteValido()` en `email.ts`: rechaza el valor antes de llamar a Resend,
+  con un mensaje que dice qué hacer. Ojo con el orden de las comprobaciones: si
+  extraes el correo de entre `<>` **antes** de mirar las comillas exteriores, el
+  valor roto pasa la validación — el correo de dentro es válido. Hay una prueba
+  en `test:lib` que fija justo ese caso.
+
+**Regla:** ninguna variable de entorno lleva comillas. Ni en `.env.local`, ni
+en Vercel, ni en los secretos de GitHub.
+
 ---
 
 ## 6 · Mapa del código

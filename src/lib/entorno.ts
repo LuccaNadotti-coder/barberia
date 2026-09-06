@@ -17,6 +17,28 @@
  * `src/lib/sesion-navegador.ts`.
  */
 
+/**
+ * Quita las comillas que envuelven el valor, si las hay.
+ *
+ * En un archivo `.env`, `CLAVE="valor con espacios"` es la forma normal de
+ * escribirlo y dotenv quita las comillas al leerlo. En el panel de Vercel NO:
+ * ahí el valor es literalmente lo que pegas, comillas incluidas. Copiar una
+ * línea del `.env.local` al dashboard mete las comillas en el valor.
+ *
+ * Nos costó el 100 % de los correos en producción. `RESEND_FROM` valía
+ * `"Barbería <onboarding@resend.dev>"` con comillas y Resend respondía
+ * «Invalid `from` field» en cada envío. En local no se veía, porque ahí sí las
+ * quita dotenv: fallaba **sólo** en producción, y en silencio — el fallo se
+ * anotaba en `notificaciones` y la reserva seguía adelante como si nada.
+ */
+function sinComillas(v: string): string {
+  const t = v.trim()
+  if (t.length >= 2 && ((t[0] === '"' && t.at(-1) === '"') || (t[0] === "'" && t.at(-1) === "'"))) {
+    return t.slice(1, -1)
+  }
+  return t
+}
+
 /** Variable obligatoria: si falta, se cae con un mensaje que dice cuál. */
 export function requerida(nombre: string): string {
   const v = process.env[nombre]
@@ -25,14 +47,19 @@ export function requerida(nombre: string): string {
       `Falta la variable de entorno ${nombre}. Revisa .env.local (mira .env.example).`,
     )
   }
-  return v
+  return sinComillas(v)
 }
 
 /** Variable opcional: devuelve undefined en lugar de reventar. */
 export function opcional(nombre: string): string | undefined {
   const v = process.env[nombre]
-  return v && v.length > 0 ? v : undefined
+  if (!v || v.length === 0) return undefined
+  const limpio = sinComillas(v)
+  return limpio.length > 0 ? limpio : undefined
 }
+
+/** Expuesta sólo para las pruebas de `pruebas/lib.mjs`. */
+export const _sinComillas = sinComillas
 
 /** URL pública del sitio, sin barra final. Se usa en correos y en el .ics. */
 export function urlSitio(): string {
