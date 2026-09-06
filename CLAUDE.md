@@ -179,10 +179,15 @@ del sistema de husos en vez de cablearlo.
 ### El cron de 5 minutos NO es de fiar, y la base no depende de él
 
 `liberar-slots.yml` declara `cron: '*/5 * * * *'`, pero GitHub deprioriza los
-`schedule` frecuentes de los repos públicos gratuitos. Medido el 2026-09-06:
-**un solo disparo por `schedule` en toda la vida del repo**, y después 3 h 26
-min de silencio absoluto. No es un fallo de configuración — el cron es válido y
-el workflow está `active`. Es la cola de GitHub.
+`schedule` de los repos públicos gratuitos. Medido el 2026-09-06 sobre 17 h de
+historial: **5 ejecuciones donde tocaban ~200**. Los huecos entre disparos
+fueron de 2 h 40 min, 4 h 45 min, 3 h y 3 h. No es un fallo de configuración —
+el cron es válido, la rama es la correcta y el workflow está `active`. Es la
+cola de GitHub, y el retraso es de dos órdenes de magnitud.
+
+Le pasa igual a `recordatorios.yml`: programado a las 14:00 UTC (9:00 en Lima),
+ese día corrió a las **16:38 UTC = 11:38 en Lima**. Si algún día importa que el
+recordatorio salga a una hora concreta, hay que sacarlo de GitHub Actions.
 
 Por eso el vencimiento de los 15 minutos vive **en la base**, no en el cron:
 
