@@ -13,7 +13,7 @@ import { cuentaAtras, soles } from '../src/lib/fechas'
 import { esImagenReal, normalizarTelefono, telefonoLegible } from '../src/lib/validacion'
 import { enlacePara, mensajeRecordatorio } from '../src/lib/whatsapp'
 import { _sinComillas, opcional, requerida } from '../src/lib/entorno'
-import { remitenteValido } from '../src/lib/email'
+import { partirRemitente, remitenteValido } from '../src/lib/email'
 
 let fallos = 0
 const ok = (t: string, d = '') =>
@@ -146,6 +146,13 @@ function main() {
     ? ok('remitente: rechaza el valor entrecomillado', 'el fallo real de producción')
     : no('REMITENTE ENTRECOMILLADO ACEPTADO', 'volvería a fallar en producción')
   !remitenteValido('Barbería') ? ok('remitente: rechaza texto suelto') : no('texto suelto')
+
+  // Brevo quiere el nombre y el correo por separado, no la cadena entera.
+  eq(partirRemitente('hola@x.com').correo, 'hola@x.com', 'partir: correo suelto')
+  eq(partirRemitente('hola@x.com').nombre, undefined, 'partir: sin nombre')
+  eq(partirRemitente('Barbería <hola@x.com>').correo, 'hola@x.com', 'partir: correo con nombre')
+  eq(partirRemitente('Barbería <hola@x.com>').nombre, 'Barbería', 'partir: nombre')
+  eq(partirRemitente('"El Templo" <hola@x.com>').nombre, 'El Templo', 'partir: nombre entrecomillado')
 
   console.log(
     fallos === 0

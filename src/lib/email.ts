@@ -6,11 +6,27 @@ import { generarICS, nombreICS } from './ics'
 /**
  * Correo 100 % automático (a diferencia de WhatsApp, que es manual a propósito).
  *
- * Resend en capa gratuita: 3 000 correos/mes, 100/día. Para una barbería con
- * 2 barberos son unas 20 citas al día como mucho → 40-60 correos. Sobra.
- *
  * El correo de confirmación lleva el .ics adjunto: el cliente lo toca y la
  * cita entra en su calendario con alarma 2 h antes.
+ *
+ * ── DOS PROVEEDORES, Y NO ES POR CAPRICHO ───────────────────────────────────
+ *
+ * **Resend** exige verificar un DOMINIO. Mientras no lo hagas, su remitente de
+ * pruebas `onboarding@resend.dev` **sólo entrega al dueño de la cuenta**; a
+ * cualquier otro destinatario responde 403 diciéndolo con todas las letras. Es
+ * la mejor opción, pero obliga a tener un dominio.
+ *
+ * **Brevo** verifica UNA DIRECCIÓN suelta (un Gmail vale). Sin dominio, sin
+ * gastar, 300 correos/día. A cambio, un remitente de Gmail cae en spam más a
+ * menudo que uno de dominio propio.
+ *
+ * Se elige solo: si hay `BREVO_API_KEY`, se usa Brevo; si no, Resend. Así el
+ * día que haya dominio se vuelve a Resend borrando una variable, sin tocar
+ * código.
+ *
+ * Brevo va por `fetch` a pelo, sin SDK: son 20 líneas y el proyecto ya evita
+ * dependencias que no aportan (mira `r2.ts`, que firma SigV4 a mano para no
+ * arrastrar 15 MB de SDK de AWS).
  */
 
 const NOMBRE_LOCAL = process.env.NEXT_PUBLIC_NOMBRE_LOCAL || 'Barbería'
@@ -20,8 +36,30 @@ function resend(): Resend {
   return new Resend(requerida('RESEND_API_KEY'))
 }
 
+/** Brevo si hay clave suya; si no, Resend. */
+function proveedor(): 'brevo' | 'resend' {
+  return opcional('BREVO_API_KEY') ? 'brevo' : 'resend'
+}
+
+/** El remitente. `EMAIL_FROM` manda; `RESEND_FROM` se mantiene por compatibilidad. */
+function remitente(): string | undefined {
+  return opcional('EMAIL_FROM') ?? opcional('RESEND_FROM')
+}
+
 export function emailConfigurado(): boolean {
-  return Boolean(opcional('RESEND_API_KEY') && opcional('RESEND_FROM'))
+  if (!remitente()) return false
+  return Boolean(opcional('BREVO_API_KEY') ?? opcional('RESEND_API_KEY'))
+}
+
+/** Parte `Nombre <correo@dominio>` en sus dos trozos. Brevo los quiere aparte. */
+export function partirRemitente(from: string): { nombre?: string; correo: string } {
+  const t = from.trim()
+  const i = t.indexOf('<')
+  if (i === -1) return { correo: t }
+  return {
+    nombre: t.slice(0, i).trim().replace(/^"|"$/g, '') || undefined,
+    correo: t.slice(i + 1, t.indexOf('>')).trim(),
+  }
 }
 
 /**
@@ -214,25 +252,31 @@ async function enviar(
   }
   if (!emailConfigurado()) {
     console.warn(`[email] sin configurar; no se envía "${p.asunto}" a ${d.cliente_email}`)
-    return { ok: false, error: 'Resend no está configurado' }
+    return { ok: false, error: 'El correo no está configurado' }
   }
 
-  const remitente = requerida('RESEND_FROM')
-  if (!remitenteValido(remitente)) {
+  const de = remitente()!
+  if (!remitenteValido(de)) {
     const error =
-      `RESEND_FROM no tiene forma de remitente: ${JSON.stringify(remitente)}. ` +
-      'Debe ser "correo@dominio" o "Nombre <correo@dominio>", SIN comillas ' +
-      'alrededor. Si lo pegaste en el panel de Vercel, quítaselas allí.'
+      `El remitente no tiene forma de correo: ${JSON.stringify(de)}. Debe ser ` +
+      '"correo@dominio" o "Nombre <correo@dominio>", SIN comillas alrededor. ' +
+      'Si lo pegaste en el panel de Vercel, quítaselas allí.'
     console.error('[email]', error)
     return { ok: false, error }
   }
 
+  const html = envoltorio(p.titulo, p.cuerpo)
+
   try {
+    if (proveedor() === 'brevo') {
+      return await enviarPorBrevo(de, d.cliente_email, p.asunto, html, adjuntos)
+    }
+
     const r = await resend().emails.send({
-      from: remitente,
+      from: de,
       to: d.cliente_email,
       subject: p.asunto,
-      html: envoltorio(p.titulo, p.cuerpo),
+      html,
       ...(adjuntos ? { attachments: adjuntos } : {}),
     })
     if (r.error) return { ok: false, error: r.error.message }
@@ -242,6 +286,59 @@ async function enviar(
     console.error('[email] fallo al enviar', error)
     return { ok: false, error }
   }
+}
+
+/**
+ * Brevo por HTTP, sin SDK.
+ *
+ * El adjunto ya viene en base64 desde `enviarConfirmacion()`, que es justo lo
+ * que Brevo pide en `attachment[].content`. Resend usa la misma codificación,
+ * así que el .ics no hay que tocarlo.
+ *
+ * Brevo devuelve 2xx con `{ messageId }`. En un error, el cuerpo trae
+ * `{ code, message }`; se propaga tal cual para que quede en `notificaciones`
+ * y se pueda leer después — el fallo de las comillas se encontró así.
+ */
+async function enviarPorBrevo(
+  de: string,
+  para: string,
+  asunto: string,
+  html: string,
+  adjuntos?: { filename: string; content: string }[],
+): Promise<ResultadoEnvio> {
+  const { nombre, correo } = partirRemitente(de)
+
+  const r = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'api-key': requerida('BREVO_API_KEY'),
+      'content-type': 'application/json',
+      accept: 'application/json',
+    },
+    body: JSON.stringify({
+      sender: nombre ? { name: nombre, email: correo } : { email: correo },
+      to: [{ email: para }],
+      subject: asunto,
+      htmlContent: html,
+      ...(adjuntos
+        ? { attachment: adjuntos.map((a) => ({ name: a.filename, content: a.content })) }
+        : {}),
+    }),
+  })
+
+  const cuerpo = (await r.json().catch(() => null)) as
+    | { messageId?: string; code?: string; message?: string }
+    | null
+
+  if (!r.ok) {
+    const error = cuerpo?.message
+      ? `Brevo ${r.status}: ${cuerpo.message}`
+      : `Brevo respondió ${r.status}`
+    console.error('[email]', error)
+    return { ok: false, error }
+  }
+
+  return { ok: true, id: cuerpo?.messageId }
 }
 
 // ── Utilidades ────────────────────────────────────────────────────────────────
