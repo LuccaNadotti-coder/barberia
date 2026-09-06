@@ -176,6 +176,26 @@ del sistema de husos en vez de cablearlo.
 - El cron de recordatorios corre a las **14:00 UTC = 9:00 en Lima**, siempre.
   No hay que ajustarlo dos veces al año.
 
+### El cron de 5 minutos NO es de fiar, y la base no depende de él
+
+`liberar-slots.yml` declara `cron: '*/5 * * * *'`, pero GitHub deprioriza los
+`schedule` frecuentes de los repos públicos gratuitos. Medido el 2026-09-06:
+**un solo disparo por `schedule` en toda la vida del repo**, y después 3 h 26
+min de silencio absoluto. No es un fallo de configuración — el cron es válido y
+el workflow está `active`. Es la cola de GitHub.
+
+Por eso el vencimiento de los 15 minutos vive **en la base**, no en el cron:
+
+- `horarios_disponibles()` no cuenta como ocupada una `pendiente_pago` cuyo
+  `expira_en` ya pasó.
+- `crear_reserva()` las pasa a `liberada` **antes** de insertar. Este paso no es
+  opcional: el `EXCLUDE` sí las sigue contando, así que sin el barrido la web
+  ofrecería el hueco y el insert devolvería `23P01` sobre un slot libre.
+
+El cron sigue existiendo, pero ahora es **limpieza**, no la única defensa. Si lo
+borras, nadie se entera; si borras el barrido, un abandono a mitad del Yape mata
+ese horario hasta que GitHub decida aparecer.
+
 Dinero: **siempre en céntimos de sol** (`integer`). `3000` = S/ 30.00. Nunca
 float, nunca `numeric` para operar.
 
@@ -446,6 +466,8 @@ npm run tipos     # supabase gen types typescript --linked
 ## 8 · Cosas que NO hay que hacer
 
 - Cambiar el `EXCLUDE` por un `UNIQUE`.
+- Quitar el barrido de vencidas de `crear_reserva()` creyendo que para eso ya
+  está el cron. El cron llega tarde o no llega.
 - Aceptar precio, monto o estado desde el body de una petición pública.
 - Confirmar una cita automáticamente al recibir la captura.
 - Añadir `UPDATE` o `DELETE` a `pagos`.

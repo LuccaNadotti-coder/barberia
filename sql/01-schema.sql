@@ -520,6 +520,16 @@ begin
       select 1 from public.citas c
       where c.barbero_id = p_barbero_id
         and c.estado = any (public.estados_vivos())
+        -- Una 'pendiente_pago' con el plazo ya vencido NO retiene el slot. El
+        -- cron de liberación es limpieza, no la única defensa: GitHub Actions
+        -- deprioriza los cron '*/5' de repos públicos y puede pasarse horas sin
+        -- ejecutarlos (comprobado: 3 h 26 min sin un solo disparo). Sin esta
+        -- condición, un abandono a mitad del Yape mataría ese horario hasta que
+        -- GitHub decidiera aparecer. crear_reserva las libera de verdad antes de
+        -- insertar, porque el EXCLUDE sí las sigue contando.
+        and not (c.estado = 'pendiente_pago'
+                 and c.expira_en is not null
+                 and c.expira_en < now())
         and c.rango && tstzrange(s.inicio, s.fin, '[)')
     )
   order by s.inicio;
@@ -598,6 +608,21 @@ begin
   -- ── Congelado de precio ─────────────────────────────────────────────────────
   -- round() sobre el 50 % en céntimos. S/ 35.00 → adelanto S/ 17.50.
   v_adelanto := round(v_srv.precio_centimos * v_srv.adelanto_pct / 100.0)::integer;
+
+  -- ── Barrido de vencidas ─────────────────────────────────────────────────────
+  -- Mismo criterio que liberar_vencidas(), acotado a este barbero. Va ANTES del
+  -- insert y no después: el EXCLUDE cuenta las 'pendiente_pago' aunque estén
+  -- vencidas, así que sin este barrido horarios_disponibles ofrecería el hueco
+  -- y el insert respondería 23P01 sobre un slot que en realidad está libre.
+  -- Se queda tan cerca del insert como se puede para no sostener los locks de
+  -- fila más tiempo del necesario.
+  update public.citas
+     set estado    = 'liberada',
+         expira_en = null
+   where barbero_id = p_barbero_id
+     and estado     = 'pendiente_pago'
+     and expira_en is not null
+     and expira_en < now();
 
   -- ── Inserción con reintento de código y captura del solape ──────────────────
   for i in 1..7 loop
