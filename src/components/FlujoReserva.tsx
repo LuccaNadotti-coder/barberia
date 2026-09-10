@@ -124,7 +124,9 @@ export function FlujoReserva({
   }, [paso, dia, cargarHoras])
 
   // ── Cronómetro de 15 minutos ────────────────────────────────────────────────
-  const [restante, setRestante] = useState<number>(0)
+  const [restante, setRestante] = useState<number>(() =>
+    reservaInicial?.expira_en ? new Date(reservaInicial.expira_en).getTime() - Date.now() : 0,
+  )
   useEffect(() => {
     if (!reserva?.expira_en || estadoFinal) return
     const vence = new Date(reserva.expira_en).getTime()
@@ -255,7 +257,7 @@ export function FlujoReserva({
   // ═══ Pantalla final ═════════════════════════════════════════════════════════
   if (paso === 5 && reserva && estadoFinal) {
     return (
-      <div ref={cima} className="px-4 py-8">
+      <div ref={cima} className="px-4 py-8 sm:px-6 sm:py-12">
         <div className="mx-auto max-w-[360px] pb-6 text-center">
           <Rotulo>{estadoFinal === 'confirmada' ? 'Confirmada' : 'Listo'}</Rotulo>
           <h1 className="mt-2 font-display text-3xl uppercase leading-none text-hueso">
@@ -294,8 +296,13 @@ export function FlujoReserva({
 
   // ═══ Flujo ══════════════════════════════════════════════════════════════════
   return (
-    <div className="px-4 pb-24 pt-6">
-      <div ref={cima} className="mx-auto max-w-[440px]">
+    <div className="px-4 pb-24 pt-6 sm:px-6 sm:pt-10">
+      {/* El ancho crece por pasos: 440 en móvil (la medida para la que se
+          diseñó), 680 a partir de tablet para que las rejillas de servicios y
+          horas quepan en menos filas. Lo que NO crece son los formularios ni
+          la tarjeta del Yape: un input de 680 px es peor de leer que uno de
+          480, así que cada paso pone su propio tope más abajo. */}
+      <div ref={cima} className="mx-auto max-w-[440px] sm:max-w-[680px]">
         <Progreso paso={paso} />
 
         {errorGeneral && paso !== 4 && (
@@ -307,7 +314,7 @@ export function FlujoReserva({
         {/* ── PASO 1 · SERVICIO ──────────────────────────────────────────── */}
         {paso === 0 && (
           <Seccion titulo="¿Qué te hacemos?" sub="Elige un servicio para empezar.">
-            <div className="flex flex-col gap-2.5">
+            <div className="grid gap-2.5 sm:grid-cols-2">
               {servicios.map((s, i) => (
                 <Opcion
                   key={s.id}
@@ -350,7 +357,8 @@ export function FlujoReserva({
         {/* ── PASO 2 · BARBERO ───────────────────────────────────────────── */}
         {paso === 1 && (
           <Seccion titulo="¿Con quién?" sub="Los dos cortan igual de bien.">
-            <div className="grid grid-cols-2 gap-2.5">
+            {/* Son dos: sin tope se convierten en dos carteles de 340 px. */}
+            <div className="grid grid-cols-2 gap-2.5 sm:max-w-[420px]">
               {barberos.map((b, i) => (
                 <Opcion
                   key={b.id}
@@ -383,7 +391,11 @@ export function FlujoReserva({
           >
             <div>
               <Rotulo className="mb-2">Día</Rotulo>
-              <div className="franja -mx-4 px-4">
+              {/* En móvil es una franja que se arrastra con el dedo y sangra
+                  hasta el borde de la pantalla. Con ratón arrastrar una barra
+                  horizontal es incómodo, así que a partir de tablet los 14 días
+                  se envuelven en varias filas y se ven todos de golpe. */}
+              <div className="franja -mx-4 px-4 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
                 {dias.map((d) => {
                   const elegido = dia === d.iso
                   return (
@@ -424,8 +436,8 @@ export function FlujoReserva({
               <Rotulo className="mb-2">Hora</Rotulo>
 
               {cargandoHoras && (
-                <div className="grid grid-cols-4 gap-2">
-                  {Array.from({ length: 8 }).map((_, i) => (
+                <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8">
+                  {Array.from({ length: 12 }).map((_, i) => (
                     <div key={i} className="esqueleto h-[46px] rounded-pastilla" />
                   ))}
                 </div>
@@ -439,7 +451,7 @@ export function FlujoReserva({
               )}
 
               {!cargandoHoras && horas && horas.length > 0 && (
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8">
                   {horas.map((h, i) => {
                     const elegida = inicio === h
                     return (
@@ -474,85 +486,89 @@ export function FlujoReserva({
         {/* ── PASO 4 · DATOS ─────────────────────────────────────────────── */}
         {paso === 3 && servicio && barbero && inicio && (
           <Seccion titulo="Tus datos" sub="Sólo para avisarte. No mandamos publicidad.">
-            <Resumen
-              servicio={servicio}
-              barbero={barbero.nombre}
-              inicio={inicio}
-            />
-
-            <form onSubmit={enviarReserva} className="mt-5 flex flex-col gap-4" noValidate>
-              <Campo
-                id="nombre"
-                etiqueta="Nombre"
-                name="nombre"
-                autoComplete="given-name"
-                enterKeyHint="next"
-                placeholder="Ana Torres"
-                required
-                value={form.nombre}
-                error={errores.nombre}
-                onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-              />
-              <Campo
-                id="telefono"
-                etiqueta="Celular"
-                name="telefono"
-                type="tel"
-                inputMode="numeric"
-                autoComplete="tel-national"
-                enterKeyHint="next"
-                placeholder="987 654 321"
-                required
-                value={form.telefono}
-                error={errores.telefono}
-                ayuda="9 dígitos. Te escribimos por aquí si hay algún cambio."
-                onChange={(e) => setForm({ ...form, telefono: e.target.value })}
-              />
-              <Campo
-                id="email"
-                etiqueta="Correo (opcional)"
-                name="email"
-                type="email"
-                inputMode="email"
-                autoComplete="email"
-                enterKeyHint="done"
-                placeholder="ana@correo.com"
-                value={form.email}
-                error={errores.email}
-                ayuda="Si lo dejas, te mandamos la cita para tu calendario."
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
+            {/* Los campos no se estiran a 680 px: una línea de texto tan larga
+                cuesta más de leer y el ojo pierde el principio del renglón. */}
+            <div className="sm:max-w-[480px]">
+              <Resumen
+                servicio={servicio}
+                barbero={barbero.nombre}
+                inicio={inicio}
               />
 
-              {turnstileSiteKey && (
-                <Turnstile siteKey={turnstileSiteKey} onToken={setTokenTurnstile} />
-              )}
+              <form onSubmit={enviarReserva} className="mt-5 flex flex-col gap-4" noValidate>
+                <Campo
+                  id="nombre"
+                  etiqueta="Nombre"
+                  name="nombre"
+                  autoComplete="given-name"
+                  enterKeyHint="next"
+                  placeholder="Ana Torres"
+                  required
+                  value={form.nombre}
+                  error={errores.nombre}
+                  onChange={(e) => setForm({ ...form, nombre: e.target.value })}
+                />
+                <Campo
+                  id="telefono"
+                  etiqueta="Celular"
+                  name="telefono"
+                  type="tel"
+                  inputMode="numeric"
+                  autoComplete="tel-national"
+                  enterKeyHint="next"
+                  placeholder="987 654 321"
+                  required
+                  value={form.telefono}
+                  error={errores.telefono}
+                  ayuda="9 dígitos. Te escribimos por aquí si hay algún cambio."
+                  onChange={(e) => setForm({ ...form, telefono: e.target.value })}
+                />
+                <Campo
+                  id="email"
+                  etiqueta="Correo (opcional)"
+                  name="email"
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  enterKeyHint="done"
+                  placeholder="ana@correo.com"
+                  value={form.email}
+                  error={errores.email}
+                  ayuda="Si lo dejas, te mandamos la cita para tu calendario."
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                />
 
-              {errorGeneral && <Aviso tono="error">{errorGeneral}</Aviso>}
+                {turnstileSiteKey && (
+                  <Turnstile siteKey={turnstileSiteKey} onToken={setTokenTurnstile} />
+                )}
 
-              <Boton type="submit" cargando={enviando} className="mt-1 w-full">
-                {enviando ? 'Reservando…' : 'Reservar y pagar adelanto'}
-              </Boton>
+                {errorGeneral && <Aviso tono="error">{errorGeneral}</Aviso>}
 
-              <p className="text-center text-[12px] leading-relaxed text-hueso-apagado">
-                Al reservar guardamos tu horario por{' '}
-                <strong className="text-hueso-tenue">15 minutos</strong> mientras haces el Yape.
-              </p>
+                <Boton type="submit" cargando={enviando} className="mt-1 w-full">
+                  {enviando ? 'Reservando…' : 'Reservar y pagar adelanto'}
+                </Boton>
 
-              {/* Ley 29733: hay que informar ANTES de recoger los datos, no
-                  después. Va aquí, pegado al botón, y no escondido en un pie. */}
-              <p className="text-center text-[12px] leading-relaxed text-hueso-apagado">
-                Usamos tu nombre y celular sólo para gestionar este turno.{' '}
-                <a
-                  href="/privacidad"
-                  target="_blank"
-                  rel="noopener"
-                  className="text-hueso-tenue underline underline-offset-4"
-                >
-                  Cómo tratamos tus datos
-                </a>
-                .
-              </p>
-            </form>
+                <p className="text-center text-[12px] leading-relaxed text-hueso-apagado">
+                  Al reservar guardamos tu horario por{' '}
+                  <strong className="text-hueso-tenue">15 minutos</strong> mientras haces el Yape.
+                </p>
+
+                {/* Ley 29733: hay que informar ANTES de recoger los datos, no
+                    después. Va aquí, pegado al botón, y no escondido en un pie. */}
+                <p className="text-center text-[12px] leading-relaxed text-hueso-apagado">
+                  Usamos tu nombre y celular sólo para gestionar este turno.{' '}
+                  <a
+                    href="/privacidad"
+                    target="_blank"
+                    rel="noopener"
+                    className="text-hueso-tenue underline underline-offset-4"
+                  >
+                    Cómo tratamos tus datos
+                  </a>
+                  .
+                </p>
+              </form>
+            </div>
 
             <Volver a={() => setPaso(2)} />
           </Seccion>
@@ -567,7 +583,7 @@ export function FlujoReserva({
             <Cronometro restante={restante} expirado={expirado} />
 
             {expirado ? (
-              <div className="mt-4 flex flex-col gap-4">
+              <div className="mt-4 flex flex-col gap-4 sm:max-w-[520px]">
                 <Aviso tono="error">
                   Se acabaron los 15 minutos y liberamos el horario para otra persona. No se te
                   cobró nada.
@@ -577,103 +593,110 @@ export function FlujoReserva({
                 </Boton>
               </div>
             ) : (
-              <>
-                {/* Datos del Yape */}
-                <div className="mt-4 rounded-ficha border border-tinta-600 bg-tinta-800 p-5 text-center">
-                  {yapeQrUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={yapeQrUrl}
-                      alt={`Código QR de Yape de ${reserva.yape_titular ?? nombreLocal}`}
-                      width={196}
-                      height={196}
-                      className="mx-auto rounded-pastilla bg-white p-2"
-                    />
-                  ) : (
-                    <div className="mx-auto flex h-[196px] w-[196px] items-center justify-center rounded-pastilla border border-dashed border-tinta-500 text-[12px] leading-relaxed text-hueso-apagado">
-                      Yapea al número
-                      <br />
-                      de abajo
+              /* En móvil todo va en columna y se hace scroll: primero a qué
+                 número yapear, después el botón de subir. Desde `md` caben los
+                 dos lados a la vez, y eso importa — el cliente tiene la app de
+                 Yape abierta en el móvil y la web en el portátil, así que ve el
+                 número y el botón de subir sin desplazar la página. */
+              <div className="md:grid md:grid-cols-2 md:items-start md:gap-6">
+                <div className="sm:max-w-[520px] md:max-w-none">
+                  {/* Datos del Yape */}
+                  <div className="mt-4 rounded-ficha border border-laton-hondo bg-tinta-800 p-5 text-center">
+                    <div className="text-[12px] uppercase tracking-wide text-hueso-tenue">Tu barbero</div>
+                    <div className="mt-1 break-words text-[24px] font-semibold leading-tight text-hueso">
+                      {reserva.barbero_nombre}
                     </div>
-                  )}
-
-                  <div className="mt-4">
-                    <div className="text-[11px] uppercase tracking-[0.18em] text-hueso-apagado">
-                      Yape
-                    </div>
-                    <div className="tabular mt-1 select-all font-mono text-[22px] font-semibold text-hueso">
-                      {reserva.yape_numero ? telefonoLegible(`51${reserva.yape_numero}`) : '—'}
-                    </div>
-                    {reserva.yape_titular && (
-                      <div className="mt-0.5 text-[13px] text-hueso-tenue">
-                        {reserva.yape_titular}
+                    <div className="mt-5 rounded-pastilla border border-laton-hondo bg-laton-humo px-2 py-4">
+                      <div className="text-[13px] font-semibold text-hueso-tenue">Número de Yape</div>
+                      <div className="tabular mt-1 select-all whitespace-nowrap font-mono text-[28px] font-semibold leading-tight text-laton sm:text-[32px]">
+                        {reserva.yape_numero ? telefonoLegible(`51${reserva.yape_numero}`) : 'No configurado'}
                       </div>
-                    )}
+                      <div className="mt-3 text-[12px] uppercase tracking-wide text-hueso-tenue">Titular de la cuenta Yape</div>
+                      <div className="mt-1 break-words text-[18px] font-semibold leading-snug text-hueso">
+                        {reserva.yape_titular || 'Pendiente de configurar'}
+                      </div>
+                      <p className="mt-2 text-[12px] leading-relaxed text-hueso-tenue">
+                        Comprueba que el número y el titular coincidan en Yape antes de pagar.
+                      </p>
+                    </div>
+                    {yapeQrUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={yapeQrUrl}
+                        alt={`Código QR de Yape de ${reserva.yape_titular ?? nombreLocal}`}
+                        width={196}
+                        height={196}
+                        className="mx-auto mt-4 rounded-pastilla bg-white p-2"
+                      />
+                    ) : null}
+
+                    <div className="mt-4 border-t border-dashed border-tinta-600 pt-4">
+                      <div className="text-[11px] uppercase tracking-[0.18em] text-hueso-apagado">
+                        Monto exacto
+                      </div>
+                      <div className="tabular mt-0.5 font-mono text-turno font-semibold text-laton">
+                        {soles(reserva.adelanto_centimos)}
+                      </div>
+                    </div>
+
+                    <div className="mt-4 border-t border-dashed border-tinta-600 pt-4">
+                      <div className="text-[11px] uppercase tracking-[0.18em] text-hueso-apagado">
+                        Tu código
+                      </div>
+                      <div className="tabular mt-0.5 select-all font-mono text-[20px] font-semibold text-hueso">
+                        {reserva.codigo}
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="mt-4 border-t border-dashed border-tinta-600 pt-4">
-                    <div className="text-[11px] uppercase tracking-[0.18em] text-hueso-apagado">
-                      Monto exacto
-                    </div>
-                    <div className="tabular mt-0.5 font-mono text-turno font-semibold text-laton">
-                      {soles(reserva.adelanto_centimos)}
-                    </div>
-                  </div>
-
-                  <div className="mt-4 border-t border-dashed border-tinta-600 pt-4">
-                    <div className="text-[11px] uppercase tracking-[0.18em] text-hueso-apagado">
-                      Tu código
-                    </div>
-                    <div className="tabular mt-0.5 select-all font-mono text-[20px] font-semibold text-hueso">
-                      {reserva.codigo}
-                    </div>
-                  </div>
-                </div>
-
-                <p className="mt-3 text-center text-[12.5px] leading-relaxed text-hueso-apagado">
-                  Pon <strong className="text-hueso-tenue">{reserva.codigo}</strong> en el mensaje
-                  del Yape. Así {reserva.barbero_nombre} lo encuentra a la primera.
-                </p>
-
-                {errorGeneral && (
-                  <div className="mt-4">
-                    <Aviso tono="error">{errorGeneral}</Aviso>
-                  </div>
-                )}
-
-                {/* Subida */}
-                <div className="mt-5">
-                  <input
-                    ref={entrada}
-                    id="captura"
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    capture="environment"
-                    className="sr-only"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0]
-                      if (f) void subirCaptura(f)
-                    }}
-                  />
-                  <Boton
-                    className="w-full"
-                    cargando={subiendo}
-                    onClick={() => entrada.current?.click()}
-                  >
-                    {subiendo ? (progreso ?? 'Subiendo…') : 'Subir captura del Yape'}
-                  </Boton>
-                  <p className="mt-2 text-center text-[12px] text-hueso-apagado">
-                    JPG, PNG o WEBP · máximo 5 MB
+                  <p className="mt-3 text-center text-[12.5px] leading-relaxed text-hueso-apagado">
+                    Pon <strong className="text-hueso-tenue">{reserva.codigo}</strong> en el
+                    mensaje del Yape. Así {reserva.barbero_nombre} lo encuentra a la primera.
                   </p>
                 </div>
 
-                <div className="mt-5">
-                  <Aviso>
-                    Tu cita se confirma cuando {reserva.barbero_nombre} revise el comprobante.
-                    No es automático: alguien lo mira de verdad.
-                  </Aviso>
+                <div className="sm:max-w-[520px] md:max-w-none">
+                  {errorGeneral && (
+                    <div className="mt-4">
+                      <Aviso tono="error">{errorGeneral}</Aviso>
+                    </div>
+                  )}
+
+                  {/* Subida */}
+                  <div className="mt-5">
+                    <input
+                      ref={entrada}
+                      id="captura"
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      aria-label="Elegir comprobante de la galería"
+                      className="sr-only"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0]
+                        if (f) void subirCaptura(f)
+                      }}
+                    />
+                    <Boton
+                      className="w-full"
+                      cargando={subiendo}
+                      onClick={() => entrada.current?.click()}
+                    >
+                      {subiendo ? (progreso ?? 'Subiendo…') : 'Elegir captura de la galería'}
+                    </Boton>
+                    <p className="mt-2 text-center text-[12px] text-hueso-apagado">
+                      Elige la captura guardada en Fotos, Galería o Archivos.
+                      <br />JPG, PNG o WEBP · máximo 5 MB
+                    </p>
+                  </div>
+
+                  <div className="mt-5">
+                    <Aviso>
+                      Tu cita se confirma cuando {reserva.barbero_nombre} revise el comprobante.
+                      No es automático: alguien lo mira de verdad.
+                    </Aviso>
+                  </div>
                 </div>
-              </>
+              </div>
             )}
           </Seccion>
         )}
@@ -695,8 +718,10 @@ function Seccion({
 }) {
   return (
     <section className="mt-6">
-      <h1 className="font-display text-[30px] uppercase leading-none text-hueso">{titulo}</h1>
-      {sub && <p className="mt-1.5 text-[13.5px] leading-relaxed text-hueso-tenue">{sub}</p>}
+      <h1 className="font-display text-[30px] uppercase leading-none text-hueso sm:text-[38px]">
+        {titulo}
+      </h1>
+      {sub && <p className="mt-1.5 text-[13.5px] leading-relaxed text-hueso-tenue sm:text-[15px]">{sub}</p>}
       <div className="mt-5">{children}</div>
     </section>
   )
@@ -716,7 +741,7 @@ function Progreso({ paso }: { paso: number }) {
             />
             <div
               className={cx(
-                'mt-1.5 text-[10px] uppercase tracking-[0.1em] transition-colors duration-panel',
+                'mt-1.5 text-[10px] uppercase tracking-[0.1em] transition-colors duration-panel sm:text-[11.5px]',
                 i === paso ? 'text-laton' : 'text-hueso-apagado',
               )}
             >

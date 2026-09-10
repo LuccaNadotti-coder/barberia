@@ -7,6 +7,7 @@ import { clienteNavegador } from '@/lib/sesion-navegador'
 import type { BarberoSesion, EstadoCita } from '@/lib/supabase'
 import { telefonoLegible } from '@/lib/validacion'
 import { enlacePara } from '@/lib/whatsapp'
+import { AvisosWhatsApp } from './AvisosWhatsApp'
 import { Aviso, Boton, Rotulo, cx } from './ui'
 
 export interface CitaPanel {
@@ -53,11 +54,13 @@ export function PanelBarbero({
   const [pestana, setPestana] = useState<Pestana>(porValidar.length > 0 ? 'validar' : 'hoy')
   const [error, setError] = useState<string | null>(null)
   const [ocupada, setOcupada] = useState<string | null>(null)
+  const [aviso, setAviso] = useState<{ cita: CitaPanel; motivo?: string } | null>(null)
   const [, transicion] = useTransition()
 
   async function actuar(cita_id: string, accion: Accion, motivo?: string) {
     setError(null)
     setOcupada(cita_id)
+    setAviso(null)
     try {
       const r = await fetch('/api/panel/validar', {
         method: 'POST',
@@ -66,6 +69,14 @@ export function PanelBarbero({
       })
       const j = (await r.json()) as { error?: string }
       if (!r.ok) throw new Error(j.error ?? 'No se pudo completar la acción')
+
+      const modificada = [...porValidar, ...hoy, ...manana, ...proximas].find((c) => c.id === cita_id)
+      if (modificada && (accion === 'confirmar' || accion === 'rechazar')) {
+        setAviso({
+          cita: { ...modificada, estado: accion === 'confirmar' ? 'confirmada' : 'pendiente_pago' },
+          motivo,
+        })
+      }
 
       // Al confirmar, la cita se va de «Validar» a la pestaña que le toca por
       // fecha. Sin esto desaparece de la vista y hay que ir a buscarla para
@@ -97,8 +108,8 @@ export function PanelBarbero({
 
   return (
     <main className="min-h-dvh pb-16">
-      <header className="border-b border-tinta-600 px-4 py-4">
-        <div className="mx-auto flex max-w-[560px] items-center justify-between gap-3">
+      <header className="border-b border-tinta-600 px-4 py-4 sm:px-6">
+        <div className="mx-auto flex max-w-[560px] items-center justify-between gap-3 lg:max-w-[1120px]">
           <div className="min-w-0">
             <Rotulo>{nombreLocal}</Rotulo>
             <p className="mt-1 truncate text-[13px] text-hueso-tenue">
@@ -119,12 +130,12 @@ export function PanelBarbero({
         </div>
       </header>
 
-      <div className="mx-auto max-w-[560px] px-4">
+      <div className="mx-auto max-w-[560px] px-4 sm:px-6 lg:max-w-[1120px]">
         {/* ── Pestañas ─────────────────────────────────────────────────── */}
         {/* Cuatro pestañas en 328 px de un móvil de 360: la etiqueta se acorta a
             «Validar» y el texto baja a 12.5 px para que ninguna parta en dos
             líneas. La altura se fija a 48 px, el mínimo tocable del proyecto. */}
-        <nav className="mt-4 flex gap-1 rounded-pastilla border border-tinta-600 bg-tinta-800 p-1">
+        <nav className="mt-4 flex gap-1 rounded-pastilla border border-tinta-600 bg-tinta-800 p-1 lg:max-w-[560px]">
           {(
             [
               ['validar', 'Validar', porValidar.length],
@@ -138,7 +149,7 @@ export function PanelBarbero({
               onClick={() => setPestana(clave)}
               aria-current={pestana === clave ? 'page' : undefined}
               className={cx(
-                'pulsable flex min-h-[48px] flex-1 items-center justify-center whitespace-nowrap rounded-[7px] px-1.5 text-[12.5px] font-medium',
+                'pulsable flex min-h-[48px] flex-1 items-center justify-center whitespace-nowrap rounded-[7px] px-1.5 text-[12.5px] font-medium sm:text-[14px]',
                 pestana === clave ? 'bg-laton text-tinta-900' : 'text-hueso-tenue',
               )}
             >
@@ -163,6 +174,19 @@ export function PanelBarbero({
           </div>
         )}
 
+        {aviso && (
+          <div className="mt-4 rounded-ficha border border-laton-hondo bg-laton-humo p-4">
+            <p role="status" className="font-semibold text-hueso">
+              {aviso.cita.estado === 'confirmada' ? 'Cita aprobada' : 'Comprobante rechazado'}
+              {' · '}{aviso.cita.cliente_nombre} · {aviso.cita.codigo}
+            </p>
+            <AvisosWhatsApp estado={aviso.cita.estado} telefono={aviso.cita.cliente_telefono}
+              datos={{ ...aviso.cita, motivo: aviso.motivo }} />
+            <button type="button" onClick={() => setAviso(null)}
+              className="pulsable mt-2 min-h-[48px] text-[13px] text-hueso-tenue">Cerrar aviso</button>
+          </div>
+        )}
+
         {pestana === 'validar' && porValidar.length > 0 && (
           <p className="mt-4 text-[12.5px] leading-relaxed text-hueso-apagado">
             Mira la captura y compárala con tu Yape antes de confirmar. Una imagen se puede
@@ -170,22 +194,34 @@ export function PanelBarbero({
           </p>
         )}
 
-        {/* ── Lista ────────────────────────────────────────────────────── */}
-        <div className="mt-4 flex flex-col gap-3">
-          {lista.length === 0 && <Vacio pestana={pestana} />}
+        {/* ── Lista ──────────────────────────────────────────────────────
+            Una columna en el móvil, dos a partir de `lg`. El barbero valida
+            comprobantes desde el celular, pero la agenda del día se mira en
+            un portátil, y ahí una sola columna obliga a hacer scroll para ver
+            cuatro citas que caben de sobra en la pantalla.
 
-          {lista.map((c, i) => (
-            <Tarjeta
-              key={c.id}
-              cita={c}
-              pestana={pestana}
-              ocupada={ocupada === c.id}
-              indice={i}
-              nombreLocal={nombreLocal}
-              onAccion={actuar}
-            />
-          ))}
-        </div>
+            `items-start` no es decorativo: al desplegar un comprobante la
+            tarjeta crece mucho, y sin él estiraría a su vecina de la misma
+            fila hasta la misma altura. */}
+        {lista.length === 0 ? (
+          <div className="mt-4">
+            <Vacio pestana={pestana} />
+          </div>
+        ) : (
+          <div className="mt-4 grid items-start gap-3 lg:grid-cols-2">
+            {lista.map((c, i) => (
+              <Tarjeta
+                key={c.id}
+                cita={c}
+                pestana={pestana}
+                ocupada={ocupada === c.id}
+                indice={i}
+                nombreLocal={nombreLocal}
+                onAccion={actuar}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </main>
   )
@@ -260,12 +296,12 @@ function Tarjeta({
         <div className="font-semibold text-hueso">{cita.cliente_nombre}</div>
         <div className="mt-0.5 text-[13px] text-hueso-tenue">
           {cita.servicio_nombre}
-          {cita.barbero_nombre && pestana !== 'validar' && (
+          {cita.barbero_nombre && (
             <span className="text-hueso-apagado"> · {cita.barbero_nombre}</span>
           )}
         </div>
         {cita.cliente_telefono && (
-          <div className="tabular mt-0.5 font-mono text-[12.5px] text-hueso-apagado">
+          <div className="tabular mt-1 select-all font-mono text-[16px] font-medium text-hueso">
             {telefonoLegible(cita.cliente_telefono)}
           </div>
         )}
@@ -395,44 +431,7 @@ function Tarjeta({
         </div>
       )}
 
-      {/* ── MAÑANA ──────────────────────────────────────────────────────── */}
-      {pestana === 'manana' && cita.cliente_telefono && (
-        <div className="mt-3">
-          {/* Enlace wa.me: abre TU WhatsApp con el mensaje escrito. No se
-              envía nada por API — el envío lo haces tú, a mano, a propósito. */}
-          <a
-            href={enlacePara('recordatorio', cita.cliente_telefono, datosWa)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="pulsable flex min-h-[48px] items-center justify-center gap-2 rounded-pastilla border border-exito/40 bg-exito/10 px-4 text-[14px] font-semibold text-exito"
-          >
-            Recordar por WhatsApp
-          </a>
-          <p className="mt-1.5 text-center text-[11.5px] text-hueso-apagado">
-            Se abre tu WhatsApp con el mensaje listo. Tú le das a enviar.
-          </p>
-        </div>
-      )}
-
-      {/* ── PRÓXIMAS ────────────────────────────────────────────────────────
-          Plantilla de CONFIRMACIÓN, no de recordatorio: para el cliente esta es
-          la primera noticia de que su adelanto quedó validado. El recordatorio
-          de la pestaña «Mañana» llega después, la víspera. */}
-      {pestana === 'proximas' && cita.cliente_telefono && (
-        <div className="mt-3">
-          <a
-            href={enlacePara('confirmacion', cita.cliente_telefono, datosWa)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="pulsable flex min-h-[48px] items-center justify-center gap-2 rounded-pastilla border border-exito/40 bg-exito/10 px-4 text-[14px] font-semibold text-exito"
-          >
-            Avisar por WhatsApp
-          </a>
-          <p className="mt-1.5 text-center text-[11.5px] text-hueso-apagado">
-            Se abre tu WhatsApp con el mensaje listo. Tú le das a enviar.
-          </p>
-        </div>
-      )}
+      <AvisosWhatsApp estado={cita.estado} telefono={cita.cliente_telefono} datos={datosWa} />
 
       {/* ── CANCELAR ────────────────────────────────────────────────────────
           Discreto y a dos toques: libera el horario y no se puede deshacer.

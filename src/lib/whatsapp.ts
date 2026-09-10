@@ -38,7 +38,18 @@ export interface DatosMensaje {
 /** Primer nombre, que es como se habla por WhatsApp. */
 const pila = (n: string) => (n.trim().split(/\s+/)[0] ?? n).trim()
 
-/** Recordatorio del día anterior. Es el mensaje que más se usa. */
+/** Comprobante recibido: todavía NO es una confirmación del pago. */
+export function mensajeEnRevision(d: DatosMensaje): string {
+  return (
+    `Hola ${pila(d.cliente_nombre)} 👋 Te escribo de ${NOMBRE_LOCAL}.\n\n` +
+    `Recibimos tu comprobante. Tu cita está pendiente de aprobación; te avisaremos cuando revisemos el adelanto.\n\n` +
+    `🗓️ ${fechaLarga(d.inicio)} a las ${hora12(d.inicio)}\n` +
+    `✂️ ${d.servicio_nombre} con ${d.barbero_nombre}\n` +
+    `🎫 Código ${d.codigo}`
+  )
+}
+
+/** Fecha explícita: sirve hoy, mañana o para una cita posterior. */
 export function mensajeRecordatorio(d: DatosMensaje): string {
   const saldo =
     d.precio_centimos !== undefined && d.adelanto_centimos !== undefined
@@ -46,7 +57,7 @@ export function mensajeRecordatorio(d: DatosMensaje): string {
       : ''
   return (
     `Hola ${pila(d.cliente_nombre)} 👋 Te escribo de ${NOMBRE_LOCAL}.\n\n` +
-    `Te recuerdo tu cita de mañana:\n` +
+    `Te recuerdo tu cita:\n` +
     `🗓️ ${fechaLarga(d.inicio)} a las ${hora12(d.inicio)}\n` +
     `✂️ ${d.servicio_nombre} con ${d.barbero_nombre}\n` +
     `🎫 Código ${d.codigo}${saldo}\n\n` +
@@ -57,7 +68,7 @@ export function mensajeRecordatorio(d: DatosMensaje): string {
 /** Aviso de confirmación, cuando el barbero valida el adelanto. */
 export function mensajeConfirmacion(d: DatosMensaje): string {
   return (
-    `¡Listo ${pila(d.cliente_nombre)}! ✅ Tu adelanto quedó confirmado.\n\n` +
+    `¡Listo ${pila(d.cliente_nombre)}! ✅ Tu cita está aprobada y tu adelanto quedó confirmado.\n\n` +
     `🗓️ ${fechaLarga(d.inicio)} a las ${hora12(d.inicio)}\n` +
     `✂️ ${d.servicio_nombre} con ${d.barbero_nombre}\n` +
     `🎫 Código ${d.codigo}\n\n` +
@@ -73,7 +84,7 @@ export function mensajeRechazo(d: DatosMensaje): string {
     `No pude validar la captura del adelanto de tu cita ${d.codigo} ` +
     `(${fechaLarga(d.inicio)}, ${hora12(d.inicio)}).${motivo}\n\n` +
     `Te reservé el horario 30 minutos más para que subas una captura nueva. ` +
-    `Si prefieres, mándamela por aquí y la reviso.`
+    `Entra en la web, elige «Retoma tu pago» y usa tu código y celular. El comprobante se sube allí.`
   )
 }
 
@@ -91,7 +102,7 @@ export function mensajeLibre(d: Pick<DatosMensaje, 'cliente_nombre' | 'codigo'>)
   return `Hola ${pila(d.cliente_nombre)}, te escribo de ${NOMBRE_LOCAL} por tu reserva ${d.codigo}.`
 }
 
-export type PlantillaWhatsApp = 'recordatorio' | 'confirmacion' | 'rechazo' | 'no_show' | 'libre'
+export type PlantillaWhatsApp = 'en_revision' | 'recordatorio' | 'confirmacion' | 'rechazo' | 'no_show' | 'libre'
 
 /** Devuelve el enlace listo para un `<a href>` en el panel. */
 export function enlacePara(
@@ -100,7 +111,9 @@ export function enlacePara(
   datos: DatosMensaje,
 ): string {
   const texto =
-    plantilla === 'recordatorio'
+    plantilla === 'en_revision'
+      ? mensajeEnRevision(datos)
+      : plantilla === 'recordatorio'
       ? mensajeRecordatorio(datos)
       : plantilla === 'confirmacion'
         ? mensajeConfirmacion(datos)
