@@ -25,7 +25,7 @@ const CONTACTO = process.env.NEXT_PUBLIC_EMAIL_CONTACTO || undefined
  */
 export default function Privacidad() {
   return (
-    <main className="mx-auto max-w-[640px] px-4 py-12 pb-24">
+    <main className="mx-auto max-w-[640px] px-4 py-12 pb-24 sm:px-6">
       <a
         href="/"
         className="text-[13px] text-hueso-apagado underline underline-offset-4 hover:text-hueso-tenue"

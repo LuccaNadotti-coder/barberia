@@ -49,7 +49,7 @@ function Login() {
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-[380px] flex-col justify-center px-4 py-12">
+    <main className="mx-auto flex min-h-dvh max-w-[380px] flex-col justify-center px-4 py-12 sm:max-w-[420px] sm:px-6">
       <Rotulo>Panel</Rotulo>
       <h1 className="mt-2 font-display text-[32px] uppercase leading-none text-hueso">
         Entra a tu agenda

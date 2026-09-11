@@ -24,7 +24,7 @@ const QR = process.env.NEXT_PUBLIC_YAPE_QR_URL || undefined
 export default async function Cita() {
   if (!supabaseConfigurado()) {
     return (
-      <main className="mx-auto max-w-[440px] px-4 py-16">
+      <main className="mx-auto max-w-[440px] px-4 py-16 sm:max-w-[560px] sm:px-6">
         <Rotulo>Configuración pendiente</Rotulo>
         <div className="mt-6">
           <Aviso tono="alerta">Falta conectar Supabase.</Aviso>
@@ -47,8 +47,8 @@ export default async function Cita() {
 
   return (
     <main>
-      <header className="border-b border-tinta-600 px-4 py-5">
-        <div className="mx-auto flex max-w-[440px] items-center justify-between">
+      <header className="border-b border-tinta-600 px-4 py-5 sm:px-6">
+        <div className="mx-auto flex max-w-[440px] items-center justify-between sm:max-w-[680px]">
           <div>
             <Rotulo>{NOMBRE}</Rotulo>
             <p className="mt-1 text-[13px] text-hueso-tenue">Retoma tu reserva</p>

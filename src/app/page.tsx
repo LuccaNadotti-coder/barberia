@@ -53,8 +53,8 @@ export default async function Inicio() {
  */
 function Pie() {
   return (
-    <footer className="border-t border-tinta-600 px-4 py-8">
-      <div className="mx-auto flex max-w-[440px] flex-col items-center gap-3 text-center">
+    <footer className="border-t border-tinta-600 px-4 py-8 sm:px-6">
+      <div className="mx-auto flex max-w-[440px] flex-col items-center gap-3 text-center sm:max-w-[680px]">
         <p className="text-[13px] text-hueso-tenue">
           ¿Ya reservaste y perdiste el ticket?{' '}
           <a href="/cita" className="text-laton underline underline-offset-4">
@@ -74,8 +74,8 @@ function Pie() {
 
 function Cabecera() {
   return (
-    <header className="border-b border-tinta-600 px-4 py-5">
-      <div className="mx-auto flex max-w-[440px] items-center justify-between">
+    <header className="border-b border-tinta-600 px-4 py-5 sm:px-6">
+      <div className="mx-auto flex max-w-[440px] items-center justify-between sm:max-w-[680px]">
         <div>
           <Rotulo>{NOMBRE}</Rotulo>
           <p className="mt-1 text-[13px] text-hueso-tenue">Reserva tu turno</p>
@@ -93,7 +93,7 @@ function Cabecera() {
 
 function SinConfigurar() {
   return (
-    <main className="mx-auto max-w-[440px] px-4 py-16">
+    <main className="mx-auto max-w-[440px] px-4 py-16 sm:max-w-[560px] sm:px-6">
       <Rotulo>Configuración pendiente</Rotulo>
       <h1 className="mt-2 font-display text-3xl uppercase leading-none">Falta conectar Supabase</h1>
       <div className="mt-6">

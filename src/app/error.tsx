@@ -25,7 +25,7 @@ export default function Error({
   }, [error])
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-[380px] flex-col justify-center px-4 py-12 text-center">
+    <main className="mx-auto flex min-h-dvh max-w-[380px] flex-col justify-center px-4 py-12 text-center sm:max-w-[440px] sm:px-6">
       <Rotulo>{NOMBRE}</Rotulo>
 
       <h1 className="mt-6 font-display text-[28px] uppercase leading-none text-hueso">

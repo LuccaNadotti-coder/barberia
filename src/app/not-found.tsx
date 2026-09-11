@@ -7,7 +7,7 @@ export const metadata = { title: 'Página no encontrada' }
 
 export default function NoEncontrada() {
   return (
-    <main className="mx-auto flex min-h-dvh max-w-[380px] flex-col justify-center px-4 py-12 text-center">
+    <main className="mx-auto flex min-h-dvh max-w-[380px] flex-col justify-center px-4 py-12 text-center sm:max-w-[440px] sm:px-6">
       <Rotulo>{NOMBRE}</Rotulo>
 
       {/* El 404 en monoespaciada, como los códigos de reserva: es el mismo

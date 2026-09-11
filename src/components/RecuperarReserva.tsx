@@ -74,10 +74,10 @@ export function RecuperarReserva(props: Props) {
   if (reserva) return <FlujoReserva {...props} reservaInicial={reserva} />
 
   return (
-    <div className="px-4 pb-24 pt-10">
-      <form onSubmit={buscar} className="mx-auto max-w-[440px]">
+    <div className="px-4 pb-24 pt-10 sm:px-6 sm:pt-16">
+      <form onSubmit={buscar} className="mx-auto max-w-[440px] sm:max-w-[480px]">
         <Rotulo>Tu reserva</Rotulo>
-        <h1 className="mt-2 font-display text-3xl uppercase leading-none text-hueso">
+        <h1 className="mt-2 font-display text-3xl uppercase leading-none text-hueso sm:text-[38px]">
           Retoma tu pago
         </h1>
         <p className="mt-3 text-[14px] leading-relaxed text-hueso-tenue">
