@@ -1,4 +1,4 @@
-# CLAUDE.md — reglas de este proyecto
+# AGENTS.md — reglas de este proyecto
 
 Sistema de reservas de una barbería. Sede única en Lima, Perú. Dos barberos.
 

@@ -34,13 +34,28 @@ if (!existsSync(ARCHIVO)) {
   process.exit(1)
 }
 
-/** Extrae los pares correo/contraseña del documento de credenciales. */
+/**
+ * Extrae los pares correo/contraseña del documento de credenciales.
+ *
+ * Se lee SECCIÓN A SECCIÓN, no con tres regex globales cruzadas por índice.
+ * Con el cruce por índice, un `##` que no sea un barbero —el archivo tiene un
+ * `## RESPALDO_PASSWORD` al final— se emparejaba con un correo que no existe y
+ * la comprobación de más abajo daba las credenciales por incompletas: la
+ * prueba salía con `exit 0` sin haber comprobado nada, y el mensaje culpaba al
+ * archivo, que estaba perfectamente. Aquí sólo cuentan las secciones que
+ * traen las dos líneas.
+ */
 function credenciales() {
   const t = readFileSync(ARCHIVO, 'utf8')
-  const correos = [...t.matchAll(/correo:\s*(\S+)/g)].map((m) => m[1])
-  const claves = [...t.matchAll(/contraseña:\s*(\S+)/g)].map((m) => m[1])
-  const nombres = [...t.matchAll(/^##\s+(\w+)/gm)].map((m) => m[1])
-  return nombres.map((nombre, i) => ({ nombre, email: correos[i], clave: claves[i] }))
+  return t
+    .split(/^##\s+/m)
+    .slice(1)
+    .map((bloque) => ({
+      nombre: bloque.match(/^(\w+)/)?.[1],
+      email: bloque.match(/correo:\s*(\S+)/)?.[1],
+      clave: bloque.match(/contraseña:\s*(\S+)/)?.[1],
+    }))
+    .filter((c) => c.nombre && c.email && c.clave)
 }
 
 async function entrar(email, password) {

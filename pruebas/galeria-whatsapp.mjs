@@ -6,7 +6,10 @@ import assert from 'node:assert/strict'
 const require = createRequire(import.meta.url)
 if (process.env.TEST_SCREENSHOT_DIR) mkdirSync(process.env.TEST_SCREENSHOT_DIR,{recursive:true})
 const { build } = require('esbuild')
-const { chromium } = await import(process.env.PLAYWRIGHT_PATH || 'playwright')
+// playwright-core, NO playwright: el paquete grande se descarga ~500 MB de
+// navegadores en el postinstall y aquí no hace falta ni uno — se lanza el Edge
+// que ya trae Windows con `channel: 'msedge'`.
+const { chromium } = await import('playwright-core')
 const resultado = await build({
   stdin: { contents: `
     import React from 'react'; import { createRoot } from 'react-dom/client';
