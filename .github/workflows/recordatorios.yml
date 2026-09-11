@@ -28,10 +28,17 @@ jobs:
 
       # Sólo correo. Los WhatsApp los manda el barbero desde el panel, a mano:
       # es una decisión de negocio, no una limitación. Ver CLAUDE.md.
+      # BREVO_API_KEY manda: si tiene valor, email.ts usa Brevo; si no, Resend.
+      # Tienen que estar las dos parejas. Con sólo las de Resend, el
+      # recordatorio se manda con onboarding@resend.dev y SÓLO llega al dueño
+      # de la cuenta — a cualquier otro cliente responde 403 y se anota
+      # `fallido` en `notificaciones` sin que nadie se entere.
       - name: Enviar recordatorios por correo
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           RESEND_FROM: ${{ secrets.RESEND_FROM }}
           NEXT_PUBLIC_NOMBRE_LOCAL: ${{ vars.NEXT_PUBLIC_NOMBRE_LOCAL }}
